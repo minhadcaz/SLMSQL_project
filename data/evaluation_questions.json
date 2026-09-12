@@ -1,0 +1,1326 @@
+[
+  {
+    "id": "eval_001",
+    "question": "Có bao nhiêu sinh viên nam?",
+    "gold_sql": "SELECT COUNT(*) FROM students WHERE gender = 'Nam'",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_002",
+    "question": "Tên những môn học có ít nhất 4 tín chỉ là gì?",
+    "gold_sql": "SELECT name FROM subjects WHERE credits >= 4",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_003",
+    "question": "Cho biết tên sinh viên sinh từ năm 2003 đến 2005.",
+    "gold_sql": "SELECT full_name FROM students WHERE birth_year BETWEEN 2003 AND 2005",
+    "difficulty": "easy",
+    "tags": [
+      "BETWEEN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_004",
+    "question": "Có bao nhiêu lượt đăng ký chưa có điểm?",
+    "gold_sql": "SELECT COUNT(*) FROM enrollments WHERE score IS NULL",
+    "difficulty": "easy",
+    "tags": [
+      "NULL",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_005",
+    "question": "Tổng số điểm đã ghi nhận trong học kỳ 2024-1 là bao nhiêu?",
+    "gold_sql": "SELECT SUM(score) FROM enrollments WHERE semester = '2024-1'",
+    "difficulty": "easy",
+    "tags": [
+      "SUM",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_006",
+    "question": "Mỗi giới tính có bao nhiêu sinh viên?",
+    "gold_sql": "SELECT gender, COUNT(*) FROM students GROUP BY gender",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_007",
+    "question": "Cho biết tên sinh viên và số môn khác nhau đã đăng ký, gồm cả người chưa đăng ký.",
+    "gold_sql": "SELECT s.full_name, COUNT(DISTINCT e.subject_id) FROM students s LEFT JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_008",
+    "question": "Những khoa nào chưa có sinh viên?",
+    "gold_sql": "SELECT d.name FROM departments d WHERE NOT EXISTS (SELECT 1 FROM classes c JOIN students s ON s.class_id = c.id WHERE c.department_id = d.id)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "JOIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_009",
+    "question": "Cho biết tên 2 sinh viên lớn tuổi nhất, nếu bằng năm sinh ưu tiên mã sinh viên nhỏ hơn.",
+    "gold_sql": "SELECT full_name FROM students ORDER BY birth_year, id LIMIT 2",
+    "difficulty": "medium",
+    "tags": [
+      "ORDER BY",
+      "LIMIT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_010",
+    "question": "Cho biết tên và số tín chỉ của môn có ít tín chỉ nhất, lấy tất cả trường hợp bằng nhau.",
+    "gold_sql": "SELECT name, credits FROM subjects WHERE credits = (SELECT MIN(credits) FROM subjects)",
+    "difficulty": "medium",
+    "tags": [
+      "subquery",
+      "MIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_011",
+    "question": "Mỗi học kỳ có điểm cao nhất là bao nhiêu?",
+    "gold_sql": "SELECT semester, MAX(score) FROM enrollments GROUP BY semester",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "MAX"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_012",
+    "question": "Những sinh viên nào có ít nhất 3 lượt đăng ký?",
+    "gold_sql": "SELECT s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING COUNT(*) >= 3",
+    "difficulty": "medium",
+    "tags": [
+      "HAVING",
+      "JOIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_013",
+    "question": "Liệt kê tên sinh viên của khoa Công nghệ thông tin.",
+    "gold_sql": "SELECT s.full_name FROM students s JOIN classes c ON c.id = s.class_id JOIN departments d ON d.id = c.department_id WHERE d.name = 'Công nghệ thông tin'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_014",
+    "question": "Liệt kê tên sinh viên có điểm môn Cơ sở dữ liệu từ 8 trở lên, không trùng lặp.",
+    "gold_sql": "SELECT DISTINCT s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id JOIN subjects su ON su.id = e.subject_id WHERE su.name = 'Cơ sở dữ liệu' AND e.score >= 8",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_015",
+    "question": "Có bao nhiêu lớp chưa có sinh viên?",
+    "gold_sql": "SELECT COUNT(*) FROM classes c WHERE NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = c.id)",
+    "difficulty": "hard",
+    "tags": [
+      "COUNT",
+      "subquery"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_016",
+    "question": "Cho biết tên sinh viên có tất cả các điểm đã ghi nhận từ 5 trở lên và có ít nhất một điểm.",
+    "gold_sql": "SELECT s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING MIN(e.score) >= 5 AND COUNT(e.score) > 0",
+    "difficulty": "hard",
+    "tags": [
+      "HAVING",
+      "MIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_017",
+    "question": "Dùng CTE để cho biết tên sinh viên có điểm trung bình từ 7 đến 8.",
+    "gold_sql": "WITH averages AS (SELECT student_id, AVG(score) AS mean_score FROM enrollments GROUP BY student_id) SELECT s.full_name FROM students s JOIN averages a ON a.student_id = s.id WHERE a.mean_score BETWEEN 7 AND 8",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "JOIN",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_018",
+    "question": "Tên môn học và số lượt điểm dưới 5 của từng môn có điểm dưới 5 là gì?",
+    "gold_sql": "SELECT su.name, COUNT(*) FROM subjects su JOIN enrollments e ON e.subject_id = su.id WHERE e.score < 5 GROUP BY su.id, su.name",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_019",
+    "question": "Có bao nhiêu sinh viên khác nhau có ít nhất một điểm từ 9 trở lên?",
+    "gold_sql": "SELECT COUNT(DISTINCT student_id) FROM enrollments WHERE score >= 9",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_020",
+    "question": "Cho biết tên sinh viên chưa từng có điểm dưới 5, bao gồm người chưa có điểm.",
+    "gold_sql": "SELECT s.full_name FROM students s WHERE NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score < 5)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_021",
+    "question": "Cho biết mã và tên sinh viên sinh sau năm 2004.",
+    "gold_sql": "SELECT id, full_name FROM students WHERE birth_year > 2004",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_022",
+    "question": "Cho biết mã và tên sinh viên sinh năm 2002 hoặc 2006.",
+    "gold_sql": "SELECT id, full_name FROM students WHERE birth_year IN (2002, 2006)",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "IN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_023",
+    "question": "Cho biết mã và tên sinh viên nữ sinh trước năm 2005.",
+    "gold_sql": "SELECT id, full_name FROM students WHERE gender = 'Nữ' AND birth_year < 2005",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_024",
+    "question": "Cho biết mã và tên sinh viên không thuộc lớp mã 1 hay lớp mã 2.",
+    "gold_sql": "SELECT id, full_name FROM students WHERE class_id NOT IN (1, 2)",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "NOT IN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_025",
+    "question": "Liệt kê mã và tên môn có tên chứa chuỗi 'dữ liệu'.",
+    "gold_sql": "SELECT id, name FROM subjects WHERE name LIKE '%dữ liệu%'",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "LIKE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_026",
+    "question": "Sinh viên hiện thuộc bao nhiêu lớp khác nhau?",
+    "gold_sql": "SELECT COUNT(DISTINCT class_id) FROM students",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_027",
+    "question": "Đã có đăng ký trong bao nhiêu học kỳ khác nhau?",
+    "gold_sql": "SELECT COUNT(DISTINCT semester) FROM enrollments",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_028",
+    "question": "Có bao nhiêu lượt đăng ký đã có điểm?",
+    "gold_sql": "SELECT COUNT(score) FROM enrollments",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "NULL"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_029",
+    "question": "Có bao nhiêu sinh viên sinh năm 2006?",
+    "gold_sql": "SELECT COUNT(*) FROM students WHERE birth_year = 2006",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_030",
+    "question": "Có bao nhiêu môn học có dưới 3 tín chỉ?",
+    "gold_sql": "SELECT COUNT(*) FROM subjects WHERE credits < 3",
+    "difficulty": "easy",
+    "tags": [
+      "COUNT",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_031",
+    "question": "Liệt kê mã và tên khoa có mã khác 1, theo mã tăng dần.",
+    "gold_sql": "SELECT id, name FROM departments WHERE id <> 1 ORDER BY id",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "ORDER BY"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_032",
+    "question": "Cho biết mã và tên các môn có số tín chỉ từ 2 đến 4, kể cả hai đầu mút.",
+    "gold_sql": "SELECT id, name FROM subjects WHERE credits BETWEEN 2 AND 4",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_033",
+    "question": "Tổng tín chỉ của các môn có ít nhất 4 tín chỉ là bao nhiêu?",
+    "gold_sql": "SELECT SUM(credits) FROM subjects WHERE credits >= 4",
+    "difficulty": "easy",
+    "tags": [
+      "SUM",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_034",
+    "question": "Điểm trung bình các lượt đã có điểm của môn mã 1 là bao nhiêu?",
+    "gold_sql": "SELECT AVG(score) FROM enrollments WHERE subject_id = 1",
+    "difficulty": "easy",
+    "tags": [
+      "AVG",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_035",
+    "question": "Liệt kê mã lượt đăng ký và điểm dưới 5 theo điểm tăng dần, hòa theo mã lượt tăng dần.",
+    "gold_sql": "SELECT id, score FROM enrollments WHERE score < 5 ORDER BY score, id",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "ORDER BY"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_036",
+    "question": "Liệt kê mã lượt đăng ký, mã sinh viên và mã môn trong học kỳ 2024-2.",
+    "gold_sql": "SELECT id, student_id, subject_id FROM enrollments WHERE semester = '2024-2'",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_037",
+    "question": "Cho biết mã lượt đăng ký chưa có điểm trong học kỳ 2024-1.",
+    "gold_sql": "SELECT id FROM enrollments WHERE semester = '2024-1' AND score IS NULL",
+    "difficulty": "easy",
+    "tags": [
+      "WHERE",
+      "NULL"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_038",
+    "question": "Cho biết mã và tên môn đứng thứ hai khi sắp tín chỉ giảm dần, hòa theo mã tăng dần.",
+    "gold_sql": "SELECT id, name FROM subjects ORDER BY credits DESC, id LIMIT 1 OFFSET 1",
+    "difficulty": "easy",
+    "tags": [
+      "ORDER BY",
+      "LIMIT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_039",
+    "question": "Liệt kê những số tín chỉ khác nhau của môn học theo thứ tự giảm dần.",
+    "gold_sql": "SELECT DISTINCT credits FROM subjects ORDER BY credits DESC",
+    "difficulty": "easy",
+    "tags": [
+      "DISTINCT",
+      "ORDER BY"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_040",
+    "question": "Cho biết điểm thấp nhất và cao nhất của sinh viên mã 3.",
+    "gold_sql": "SELECT MIN(score), MAX(score) FROM enrollments WHERE student_id = 3",
+    "difficulty": "easy",
+    "tags": [
+      "MIN",
+      "MAX",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_041",
+    "question": "Cho biết mã và tên lớp thuộc khoa Kinh tế.",
+    "gold_sql": "SELECT c.id, c.name FROM classes c JOIN departments d ON d.id = c.department_id WHERE d.name = 'Kinh tế'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_042",
+    "question": "Cho biết mã và tên sinh viên thuộc khoa Ngoại ngữ.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN classes c ON c.id = s.class_id JOIN departments d ON d.id = c.department_id WHERE d.name = 'Ngoại ngữ'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_043",
+    "question": "Liệt kê mã lượt đăng ký, tên sinh viên và điểm dưới 5 trong môn Toán rời rạc.",
+    "gold_sql": "SELECT e.id, s.full_name, e.score FROM enrollments e JOIN students s ON s.id = e.student_id JOIN subjects su ON su.id = e.subject_id WHERE su.name = 'Toán rời rạc' AND e.score < 5",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_044",
+    "question": "Cho biết mã lượt đăng ký, tên môn và học kỳ của sinh viên Trần Thu Bình.",
+    "gold_sql": "SELECT e.id, su.name, e.semester FROM enrollments e JOIN students s ON s.id = e.student_id JOIN subjects su ON su.id = e.subject_id WHERE s.full_name = 'Trần Thu Bình'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_045",
+    "question": "Cho biết mã, tên từng môn và số sinh viên khác nhau đăng ký; môn chưa đăng ký trả 0.",
+    "gold_sql": "SELECT su.id, su.name, COUNT(DISTINCT e.student_id) FROM subjects su LEFT JOIN enrollments e ON e.subject_id = su.id GROUP BY su.id, su.name",
+    "difficulty": "medium",
+    "tags": [
+      "LEFT JOIN",
+      "GROUP BY",
+      "COUNT",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_046",
+    "question": "Cho biết mã khoa, tên khoa và số sinh viên nam, kể cả khoa không có nam.",
+    "gold_sql": "SELECT d.id, d.name, COUNT(s.id) FROM departments d LEFT JOIN classes c ON c.department_id = d.id LEFT JOIN students s ON s.class_id = c.id AND s.gender = 'Nam' GROUP BY d.id, d.name",
+    "difficulty": "medium",
+    "tags": [
+      "LEFT JOIN",
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_047",
+    "question": "Cho biết mã lớp và năm sinh nhỏ nhất, lớn nhất trong từng lớp có sinh viên.",
+    "gold_sql": "SELECT class_id, MIN(birth_year), MAX(birth_year) FROM students GROUP BY class_id",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "MIN",
+      "MAX"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_048",
+    "question": "Cho biết số tín chỉ và số môn có số tín chỉ đó.",
+    "gold_sql": "SELECT credits, COUNT(*) FROM subjects GROUP BY credits",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_049",
+    "question": "Cho biết mã môn, học kỳ và số lượt đăng ký của từng nhóm môn-học kỳ có đăng ký.",
+    "gold_sql": "SELECT subject_id, semester, COUNT(*) FROM enrollments GROUP BY subject_id, semester",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_050",
+    "question": "Cho biết mã sinh viên, học kỳ và điểm trung bình của từng nhóm sinh viên-học kỳ có đăng ký.",
+    "gold_sql": "SELECT student_id, semester, AVG(score) FROM enrollments GROUP BY student_id, semester",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_051",
+    "question": "Cho biết mã và tên sinh viên có đúng 4 lượt đăng ký.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING COUNT(*) = 4",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_052",
+    "question": "Cho biết mã và tên môn có ít nhất một lượt chưa có điểm.",
+    "gold_sql": "SELECT su.id, su.name FROM subjects su JOIN enrollments e ON e.subject_id = su.id GROUP BY su.id, su.name HAVING COUNT(*) > COUNT(e.score)",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_053",
+    "question": "Cho biết mã và tên lớp có hơn 2 sinh viên sinh từ năm 2004 trở đi.",
+    "gold_sql": "SELECT c.id, c.name FROM classes c JOIN students s ON s.class_id = c.id WHERE s.birth_year >= 2004 GROUP BY c.id, c.name HAVING COUNT(*) > 2",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_054",
+    "question": "Cho biết mã, tên môn và số lượt đạt từ 5 trở lên; kể cả môn không có lượt đạt.",
+    "gold_sql": "SELECT su.id, su.name, COUNT(e.id) FROM subjects su LEFT JOIN enrollments e ON e.subject_id = su.id AND e.score >= 5 GROUP BY su.id, su.name",
+    "difficulty": "medium",
+    "tags": [
+      "LEFT JOIN",
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_055",
+    "question": "Cho biết mã, tên sinh viên và số lượt được điểm 10; kể cả người chưa được điểm 10.",
+    "gold_sql": "SELECT s.id, s.full_name, COUNT(e.id) FROM students s LEFT JOIN enrollments e ON e.student_id = s.id AND e.score = 10 GROUP BY s.id, s.full_name",
+    "difficulty": "medium",
+    "tags": [
+      "LEFT JOIN",
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_056",
+    "question": "Cho biết mã và tên sinh viên nam đã đăng ký môn Cơ sở dữ liệu, không trùng lặp.",
+    "gold_sql": "SELECT DISTINCT s.id, s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id JOIN subjects su ON su.id = e.subject_id WHERE s.gender = 'Nam' AND su.name = 'Cơ sở dữ liệu'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_057",
+    "question": "Cho biết mã, tên sinh viên và tổng điểm đã ghi nhận; chỉ lấy người có ít nhất một điểm.",
+    "gold_sql": "SELECT s.id, s.full_name, SUM(e.score) FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING COUNT(e.score) > 0",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "SUM"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_058",
+    "question": "Cho biết mã, tên và số lượt đăng ký của 5 sinh viên đăng ký nhiều nhất; hòa ưu tiên mã nhỏ.",
+    "gold_sql": "SELECT s.id, s.full_name, COUNT(e.id) FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name ORDER BY COUNT(e.id) DESC, s.id LIMIT 5",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "ORDER BY",
+      "LIMIT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_059",
+    "question": "Cho biết mã khoa, tên khoa và số môn khác nhau được sinh viên trong khoa đăng ký; chỉ lấy khoa có đăng ký.",
+    "gold_sql": "SELECT d.id, d.name, COUNT(DISTINCT e.subject_id) FROM departments d JOIN classes c ON c.department_id = d.id JOIN students s ON s.class_id = c.id JOIN enrollments e ON e.student_id = s.id GROUP BY d.id, d.name",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "COUNT",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_060",
+    "question": "Cho biết mã lớp, học kỳ và điểm trung bình các lượt đăng ký trong lớp ở học kỳ đó.",
+    "gold_sql": "SELECT s.class_id, e.semester, AVG(e.score) FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.class_id, e.semester",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_061",
+    "question": "Đếm số lượt theo ba nhóm: Chưa chấm nếu NULL, Trượt nếu dưới 5, Đạt nếu từ 5; chỉ hiển thị nhóm có lượt.",
+    "gold_sql": "SELECT CASE WHEN score IS NULL THEN 'Chưa chấm' WHEN score < 5 THEN 'Trượt' ELSE 'Đạt' END AS status, COUNT(*) FROM enrollments GROUP BY status",
+    "difficulty": "medium",
+    "tags": [
+      "CASE",
+      "GROUP BY",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_062",
+    "question": "Cho biết học kỳ có ít nhất 20 điểm đã ghi nhận và số điểm đã ghi nhận tương ứng.",
+    "gold_sql": "SELECT semester, COUNT(score) FROM enrollments GROUP BY semester HAVING COUNT(score) >= 20",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_063",
+    "question": "Cho biết mã, tên môn và chênh lệch điểm cao nhất với thấp nhất làm tròn 1 chữ số; chỉ lấy môn có điểm.",
+    "gold_sql": "SELECT su.id, su.name, ROUND(MAX(e.score) - MIN(e.score), 1) FROM subjects su JOIN enrollments e ON e.subject_id = su.id GROUP BY su.id, su.name HAVING COUNT(e.score) > 0",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "ROUND"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_064",
+    "question": "Cho biết mã và tên môn mà sinh viên lớp KT01 đã đăng ký, không lặp môn.",
+    "gold_sql": "SELECT DISTINCT su.id, su.name FROM subjects su JOIN enrollments e ON e.subject_id = su.id JOIN students s ON s.id = e.student_id JOIN classes c ON c.id = s.class_id WHERE c.name = 'KT01'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE",
+      "DISTINCT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_065",
+    "question": "Có bao nhiêu lượt đăng ký của sinh viên khoa Công nghệ thông tin trong học kỳ 2024-1?",
+    "gold_sql": "SELECT COUNT(*) FROM enrollments e JOIN students s ON s.id = e.student_id JOIN classes c ON c.id = s.class_id JOIN departments d ON d.id = c.department_id WHERE d.name = 'Công nghệ thông tin' AND e.semester = '2024-1'",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "WHERE",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_066",
+    "question": "Mỗi mã sinh viên có đăng ký có bao nhiêu lượt đạt và bao nhiêu lượt dưới 5, không tính NULL vào hai nhóm?",
+    "gold_sql": "SELECT student_id, SUM(CASE WHEN score >= 5 THEN 1 ELSE 0 END) AS passed, SUM(CASE WHEN score < 5 THEN 1 ELSE 0 END) AS failed FROM enrollments GROUP BY student_id",
+    "difficulty": "medium",
+    "tags": [
+      "GROUP BY",
+      "CASE",
+      "SUM"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_067",
+    "question": "Cho biết mã và tên sinh viên có đăng ký ở cả hai học kỳ 2024-1 và 2024-2.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id WHERE e.semester IN ('2024-1', '2024-2') GROUP BY s.id, s.full_name HAVING COUNT(DISTINCT e.semester) = 2",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_068",
+    "question": "Cho biết mã, tên môn và số lượt chưa có điểm trong từng môn, kể cả môn chưa có đăng ký.",
+    "gold_sql": "SELECT su.id, su.name, SUM(CASE WHEN e.id IS NOT NULL AND e.score IS NULL THEN 1 ELSE 0 END) FROM subjects su LEFT JOIN enrollments e ON e.subject_id = su.id GROUP BY su.id, su.name",
+    "difficulty": "medium",
+    "tags": [
+      "LEFT JOIN",
+      "GROUP BY",
+      "SUM",
+      "CASE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_069",
+    "question": "Cho biết mã, tên khoa có ít nhất 2 lớp và số lớp tương ứng.",
+    "gold_sql": "SELECT d.id, d.name, COUNT(c.id) FROM departments d JOIN classes c ON c.department_id = d.id GROUP BY d.id, d.name HAVING COUNT(c.id) >= 2",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_070",
+    "question": "Cho biết mã và tên sinh viên có tổng điểm đã ghi nhận cao nhất; bỏ người chưa có điểm, hòa chọn mã nhỏ.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING COUNT(e.score) > 0 ORDER BY SUM(e.score) DESC, s.id LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "ORDER BY",
+      "LIMIT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_071",
+    "question": "Cho biết mã và tên sinh viên lớn tuổi nhất trong mỗi khoa; lấy mọi người có năm sinh nhỏ nhất khoa đó.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN classes c ON c.id = s.class_id WHERE s.birth_year = (SELECT MIN(s2.birth_year) FROM students s2 JOIN classes c2 ON c2.id = s2.class_id WHERE c2.department_id = c.department_id)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "MIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_072",
+    "question": "Cho biết mã lượt đăng ký và điểm thấp hơn điểm trung bình của chính sinh viên đó.",
+    "gold_sql": "SELECT e.id, e.score FROM enrollments e WHERE e.score < (SELECT AVG(e2.score) FROM enrollments e2 WHERE e2.student_id = e.student_id)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_073",
+    "question": "Cho biết mã lượt, mã sinh viên, học kỳ và điểm cao nhất trong chính học kỳ đó; giữ các lượt bằng điểm cao nhất.",
+    "gold_sql": "SELECT e.id, e.student_id, e.semester, e.score FROM enrollments e WHERE e.score = (SELECT MAX(e2.score) FROM enrollments e2 WHERE e2.semester = e.semester)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "MAX"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_074",
+    "question": "Cho biết mã và tên môn có đăng ký và tất cả các lượt đăng ký đều đã có điểm.",
+    "gold_sql": "SELECT su.id, su.name FROM subjects su WHERE EXISTS (SELECT 1 FROM enrollments e WHERE e.subject_id = su.id) AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.subject_id = su.id AND e.score IS NULL)",
+    "difficulty": "hard",
+    "tags": [
+      "EXISTS",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_075",
+    "question": "Cho biết mã và tên sinh viên có ít nhất một điểm và không có lượt đăng ký nào chưa có điểm.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s WHERE EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score IS NULL)",
+    "difficulty": "hard",
+    "tags": [
+      "EXISTS",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_076",
+    "question": "Cho biết mã và tên khoa không có bất kỳ lượt đăng ký nào của sinh viên thuộc khoa.",
+    "gold_sql": "SELECT d.id, d.name FROM departments d WHERE NOT EXISTS (SELECT 1 FROM classes c JOIN students s ON s.class_id = c.id JOIN enrollments e ON e.student_id = s.id WHERE c.department_id = d.id)",
+    "difficulty": "hard",
+    "tags": [
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_077",
+    "question": "Cho biết mã và tên sinh viên có điểm dưới 5 nhưng không có điểm từ 9 trở lên.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s WHERE EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score < 5) AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score >= 9)",
+    "difficulty": "hard",
+    "tags": [
+      "EXISTS",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_078",
+    "question": "Cho biết mã sinh viên vừa có lượt chưa có điểm vừa có lượt đạt từ 8 trở lên.",
+    "gold_sql": "SELECT student_id FROM enrollments WHERE score IS NULL INTERSECT SELECT student_id FROM enrollments WHERE score >= 8",
+    "difficulty": "hard",
+    "tags": [
+      "INTERSECT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_079",
+    "question": "Cho biết mã sinh viên có đăng ký trong học kỳ 2024-1 nhưng không đăng ký trong học kỳ 2024-2.",
+    "gold_sql": "SELECT student_id FROM enrollments WHERE semester = '2024-1' EXCEPT SELECT student_id FROM enrollments WHERE semester = '2024-2'",
+    "difficulty": "hard",
+    "tags": [
+      "EXCEPT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_080",
+    "question": "Cho biết mã sinh viên thuộc lớp mã 1 hoặc có điểm 10, không lặp mã.",
+    "gold_sql": "SELECT id FROM students WHERE class_id = 1 UNION SELECT student_id FROM enrollments WHERE score = 10",
+    "difficulty": "hard",
+    "tags": [
+      "UNION"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_081",
+    "question": "Cho biết mã, tên và số lượt đăng ký của mọi sinh viên có nhiều lượt đăng ký nhất.",
+    "gold_sql": "WITH a AS (SELECT s.id, s.full_name, COUNT(e.id) AS n FROM students s LEFT JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name) SELECT id, full_name, n FROM a WHERE n = (SELECT MAX(n) FROM a)",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "MAX"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_082",
+    "question": "Cho biết mã, tên và số lượt đăng ký của các môn ít được đăng ký nhất trong số môn có đăng ký.",
+    "gold_sql": "WITH a AS (SELECT subject_id, COUNT(*) AS n FROM enrollments GROUP BY subject_id) SELECT su.id, su.name, a.n FROM subjects su JOIN a ON a.subject_id = su.id WHERE a.n = (SELECT MIN(n) FROM a)",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "MIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_083",
+    "question": "Cho biết mã khoa và trung bình các điểm trung bình sinh viên của khoa; mỗi sinh viên có điểm có trọng số ngang nhau.",
+    "gold_sql": "WITH a AS (SELECT student_id, AVG(score) AS mean_score FROM enrollments GROUP BY student_id HAVING COUNT(score) > 0) SELECT c.department_id, AVG(a.mean_score) FROM a JOIN students s ON s.id = a.student_id JOIN classes c ON c.id = s.class_id GROUP BY c.department_id",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_084",
+    "question": "Có bao nhiêu môn có điểm trung bình ít nhất 7 và ít nhất 5 điểm đã ghi nhận?",
+    "gold_sql": "WITH a AS (SELECT subject_id FROM enrollments GROUP BY subject_id HAVING AVG(score) >= 7 AND COUNT(score) >= 5) SELECT COUNT(*) FROM a",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_085",
+    "question": "Cho biết học kỳ và phần trăm lượt chưa có điểm trên toàn bộ lượt đăng ký, làm tròn 2 chữ số thập phân.",
+    "gold_sql": "SELECT semester, ROUND(100.0 * SUM(CASE WHEN score IS NULL THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) FROM enrollments GROUP BY semester",
+    "difficulty": "hard",
+    "tags": [
+      "GROUP BY",
+      "NULLIF",
+      "CASE"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_086",
+    "question": "Cho biết học kỳ và điểm trung bình có trọng số tín chỉ của các lượt đã có điểm.",
+    "gold_sql": "SELECT e.semester, SUM(e.score * su.credits) * 1.0 / NULLIF(SUM(su.credits), 0) FROM enrollments e JOIN subjects su ON su.id = e.subject_id WHERE e.score IS NOT NULL GROUP BY e.semester",
+    "difficulty": "hard",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "NULLIF"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_087",
+    "question": "Cho biết mã sinh viên và tổng tín chỉ các môn khác nhau từng đạt từ 5; mỗi môn chỉ tính một lần, chỉ lấy người từng đạt.",
+    "gold_sql": "WITH passed AS (SELECT DISTINCT student_id, subject_id FROM enrollments WHERE score >= 5) SELECT p.student_id, SUM(su.credits) FROM passed p JOIN subjects su ON su.id = p.subject_id GROUP BY p.student_id",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "JOIN",
+      "SUM"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_088",
+    "question": "Cho biết mã và tên sinh viên đã đăng ký tất cả các môn mà sinh viên mã 2 từng đăng ký, bao gồm chính sinh viên mã 2 nếu phù hợp.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s WHERE NOT EXISTS (SELECT 1 FROM enrollments target WHERE target.student_id = 2 AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.subject_id = target.subject_id))",
+    "difficulty": "hard",
+    "tags": [
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_089",
+    "question": "Cho biết mã và tên lớp có sinh viên và mọi sinh viên trong lớp đều đã đăng ký ít nhất một môn.",
+    "gold_sql": "SELECT c.id, c.name FROM classes c WHERE EXISTS (SELECT 1 FROM students s WHERE s.class_id = c.id) AND NOT EXISTS (SELECT 1 FROM students s WHERE s.class_id = c.id AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id))",
+    "difficulty": "hard",
+    "tags": [
+      "EXISTS",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_090",
+    "question": "Cho biết mã, tên khoa có điểm trung bình các lượt cao hơn điểm trung bình toàn bộ lượt đã có điểm.",
+    "gold_sql": "WITH a AS (SELECT c.department_id, AVG(e.score) AS mean_score FROM classes c JOIN students s ON s.class_id = c.id JOIN enrollments e ON e.student_id = s.id GROUP BY c.department_id) SELECT d.id, d.name FROM departments d JOIN a ON a.department_id = d.id WHERE a.mean_score > (SELECT AVG(score) FROM enrollments)",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_091",
+    "question": "Cho biết mã lượt, mã sinh viên và số thứ tự lượt đăng ký của sinh viên theo mã lượt tăng dần; hiển thị theo mã sinh viên rồi mã lượt.",
+    "gold_sql": "SELECT id, student_id, ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY id) AS registration_number FROM enrollments ORDER BY student_id, id",
+    "difficulty": "hard",
+    "tags": [
+      "window",
+      "ROW_NUMBER"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_092",
+    "question": "Cho biết mã môn, tên môn, tín chỉ và hạng theo tín chỉ giảm dần; đồng tín chỉ cùng hạng và hạng tiếp theo bỏ số; hiển thị theo hạng rồi mã.",
+    "gold_sql": "SELECT id, name, credits, RANK() OVER (ORDER BY credits DESC) AS credit_rank FROM subjects ORDER BY credit_rank, id",
+    "difficulty": "hard",
+    "tags": [
+      "window",
+      "RANK"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_093",
+    "question": "Cho biết mã lượt, mã sinh viên và tổng điểm lũy kế theo mã lượt trong từng sinh viên, bỏ lượt chưa có điểm.",
+    "gold_sql": "SELECT id, student_id, SUM(score) OVER (PARTITION BY student_id ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_score FROM enrollments WHERE score IS NOT NULL ORDER BY student_id, id",
+    "difficulty": "hard",
+    "tags": [
+      "window",
+      "SUM"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_094",
+    "question": "Cho biết mã, tên và điểm trung bình của mọi sinh viên đứng hạng nhì theo điểm trung bình giảm dần không bỏ số hạng; bỏ người chưa có điểm.",
+    "gold_sql": "WITH a AS (SELECT student_id, AVG(score) AS mean_score FROM enrollments GROUP BY student_id HAVING COUNT(score) > 0), r AS (SELECT student_id, mean_score, DENSE_RANK() OVER (ORDER BY mean_score DESC) AS position FROM a) SELECT s.id, s.full_name, r.mean_score FROM r JOIN students s ON s.id = r.student_id WHERE r.position = 2",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "window",
+      "DENSE_RANK"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_095",
+    "question": "Cho biết mã lớp, mã sinh viên và tên sinh viên có điểm trung bình cao nhất mỗi lớp; chỉ tính người có điểm, hòa chọn mã sinh viên nhỏ nhất.",
+    "gold_sql": "WITH a AS (SELECT student_id, AVG(score) AS mean_score FROM enrollments GROUP BY student_id HAVING COUNT(score) > 0), r AS (SELECT s.class_id, s.id, s.full_name, ROW_NUMBER() OVER (PARTITION BY s.class_id ORDER BY a.mean_score DESC, s.id) AS position FROM students s JOIN a ON a.student_id = s.id) SELECT class_id, id, full_name FROM r WHERE position = 1",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "window",
+      "ROW_NUMBER"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_096",
+    "question": "Cho biết mã sinh viên và mức chênh lệch điểm trung bình học kỳ 2024-2 trừ 2024-1; chỉ lấy người có điểm ở cả hai kỳ.",
+    "gold_sql": "WITH a AS (SELECT student_id, semester, AVG(score) AS mean_score FROM enrollments GROUP BY student_id, semester HAVING COUNT(score) > 0) SELECT a1.student_id, a2.mean_score - a1.mean_score FROM a a1 JOIN a a2 ON a2.student_id = a1.student_id WHERE a1.semester = '2024-1' AND a2.semester = '2024-2'",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "JOIN"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_097",
+    "question": "Cho biết mã và tên sinh viên có cả lượt dưới 5 lẫn lượt từ 8 trở lên.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s JOIN enrollments e ON e.student_id = s.id GROUP BY s.id, s.full_name HAVING MIN(e.score) < 5 AND MAX(e.score) >= 8",
+    "difficulty": "hard",
+    "tags": [
+      "JOIN",
+      "GROUP BY",
+      "HAVING"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_098",
+    "question": "Cho biết mã và tên sinh viên đăng ký nhiều lượt hơn sinh viên mã 1.",
+    "gold_sql": "SELECT s.id, s.full_name FROM students s WHERE (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = s.id) > (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = 1)",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "COUNT"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_099",
+    "question": "Cho biết mã và tên môn có số lượt đăng ký cao hơn số lượt trung bình trên tất cả môn, tính cả môn chưa đăng ký trong mẫu số.",
+    "gold_sql": "WITH a AS (SELECT su.id, su.name, COUNT(e.id) AS n FROM subjects su LEFT JOIN enrollments e ON e.subject_id = su.id GROUP BY su.id, su.name) SELECT id, name FROM a WHERE n > (SELECT AVG(n) FROM a)",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "AVG"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  },
+  {
+    "id": "eval_100",
+    "question": "Cho biết mã và tên sinh viên có ít nhất một điểm và mọi điểm đã ghi nhận đều cao hơn điểm trung bình của môn tương ứng.",
+    "gold_sql": "WITH a AS (SELECT subject_id, AVG(score) AS mean_score FROM enrollments GROUP BY subject_id) SELECT s.id, s.full_name FROM students s WHERE EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = s.id AND e.score IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM enrollments e JOIN a ON a.subject_id = e.subject_id WHERE e.student_id = s.id AND e.score <= a.mean_score)",
+    "difficulty": "hard",
+    "tags": [
+      "CTE",
+      "EXISTS",
+      "NOT EXISTS"
+    ],
+    "language": "vi",
+    "source": "project-authored",
+    "db_id": "student_management"
+  }
+]

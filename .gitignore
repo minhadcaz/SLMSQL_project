@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.cache/
+models/
+.env
+uploads/
+results/*
+!results/.gitkeep
+!results/verification.md
+data/benchmarks/

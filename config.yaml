@@ -1,0 +1,49 @@
+model:
+  backend: huggingface
+  model_id: cycloneboy/SLM-SQL-1.5B
+  device: auto
+  dtype: auto
+  quantization: none
+  local_files_only: true
+seed: 42
+generation:
+  temperature: 0.7
+  top_p: 0.9
+  max_new_tokens: 512
+  batch_size: 1
+  max_input_tokens: 7000
+sampling:
+  mode: greedy
+  fixed_k: 8
+  rounds: [4, 4, 8, 16]
+  min_valid_candidates: 4
+  confidence_threshold: 0.75
+  margin_threshold: 0.25
+  max_candidates: 32
+  time_budget_seconds: 120
+validation:
+  schema: true
+  schema_selection: false
+execution:
+  timeout_seconds: 3
+  max_steps: 2000000
+  max_rows: 200
+  max_result_rows: 50000
+  max_result_bytes: 8388608
+correction:
+  enabled: true
+  per_candidate: 1
+  total_budget: 4
+ranking:
+  vote: 0.50
+  schema: 0.20
+  execution: 0.20
+  generation: 0.10
+  warning_penalty: 0.01
+schema:
+  sample_rows: 2
+  max_tables: 100
+  max_columns: 300
+upload:
+  max_mb: 20
+logging_level: INFO
