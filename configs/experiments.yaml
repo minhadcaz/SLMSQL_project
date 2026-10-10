@@ -1,0 +1,119 @@
+# Ma trận thực nghiệm E0-E11
+# Số tham chiếu SLM-SQL (BIRD dev, EX%):
+#   0.5B: 56.87 (64 mẫu, SFT+RL+CSC), 53.22 (16 mẫu)
+#   1.5B: 67.08 (64 mẫu), 64.84 (16 mẫu)
+# Đây là cấu hình có RL và huấn luyện đầy đủ, không phải mục tiêu bắt buộc.
+
+experiments:
+  E0:
+    model: [Qwen2.5-Coder-0.5B-Instruct, Qwen2.5-Coder-1.5B-Instruct]
+    training: none
+    policy: greedy
+    purpose: "Mốc dưới"
+    metrics: [EX]
+
+  E1:
+    model: [Qwen2.5-Coder-0.5B-Instruct, Qwen2.5-Coder-1.5B-Instruct]
+    training: none
+    policy: SC@16
+    purpose: "Lợi ích của SC riêng"
+    metrics: [EX]
+
+  E2:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: greedy
+    purpose: "Hiệu quả LoRA (RQ3)"
+    metrics: [EX, train_hours, VRAM]
+
+  E3:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: fixed_k
+    policy_params:
+      k: [4, 8, 16, 32]
+    purpose: "Đường cơ sở EX-số mẫu"
+    metrics: [EX, avg_samples, tokens, sec_per_query]
+
+  E4:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: beta_stopping
+    purpose: "Cơ sở adaptive kinh điển (RQ1)"
+    metrics: [EX, avg_samples]
+
+  E5:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: margin_entropy
+    purpose: "Quy tắc đơn giản"
+    metrics: [EX, avg_samples]
+
+  E6:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: learned_stopper
+    purpose: "Đề xuất 1 (RQ1)"
+    metrics: [EX, avg_samples, AUC_stopper]
+
+  E7:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT_merge
+    policy: three_action_router
+    purpose: "Đề xuất 2 (RQ2)"
+    metrics: [EX, avg_samples, CSC_call_rate, top2_coverage]
+
+  E8:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    policy: candidate_quality_ablation
+    purpose: "RQ5 - lọc/trọng số/đa dạng hóa ứng viên"
+    metrics: [EX_at_same_samples]
+
+  E9:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT_merge
+    policy: fixed_k_plus_CSC
+    purpose: "Đối chứng cho E7"
+    metrics: [EX, avg_samples]
+
+  E10:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT_merge
+    policy: full_pipeline
+    purpose: "Kết quả chính"
+    metrics: [EX_mean_std_3seed, Pareto]
+
+  E11:
+    model: [0.5B-LoRA]
+    training: LoRA_SFT_GRPO
+    policy: full_pipeline
+    purpose: "Tùy chọn (tuần 12+)"
+    metrics: [EX, GPU_hours]
+    optional: true
+
+  E-CoT:
+    model: [0.5B-LoRA, 1.5B-LoRA]
+    training: LoRA_SFT
+    variants: [answer_only, short_cot, full_cot]
+    policy: [greedy, SC@16]
+    purpose: "RQ4"
+    metrics: [EX, output_tokens, sec_per_query]
+
+  E-BIZ:
+    model: best
+    training: "-"
+    policy: best
+    purpose: "Task thực tiễn (tùy chọn)"
+    metrics: [EX_on_60_100_queries, error_classification]
+    optional: true
+
+evaluation:
+  primary: BIRD_dev
+  ood: [Spider_dev, Spider_test]
+  practical: business_60_100
+  seeds: 3
+  statistics:
+    confidence: bootstrap_95
+    pairwise: McNemar
+  anti_leak: "ngưỡng và stopper chỉ chọn trên calibration/CV theo DB"

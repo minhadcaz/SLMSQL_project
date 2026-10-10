@@ -1,0 +1,26 @@
+# Research & training dependencies — cài trên Kaggle/Colab
+# Pin versions sau khi chạy task 1.1 setup notebook
+
+# LoRA / SFT
+unsloth[kaggle]>=2024.12
+trl>=0.12.0
+peft>=0.13.0
+datasets>=3.0.0
+
+# Inference
+vllm>=0.6.0
+
+# Evaluation & analysis
+scikit-learn>=1.5.0
+xgboost>=2.1.0
+scipy>=1.14.0
+seaborn>=0.13.0
+matplotlib>=3.9.0
+pandas>=2.2.0
+pyarrow>=17.0.0
+
+# Benchmark data
+gdown>=5.2.0
+
+# Logging
+wandb>=0.18.0
