@@ -51,6 +51,19 @@ class TestFilterSynsql:
         result = filter_synsql(raw_jsonl)
         assert len(result) == 2
 
+    def test_normalizes_gretel_field_names(self, tmp_path):
+        path = tmp_path / "gretel.jsonl"
+        path.write_text(json.dumps({
+            "sql_prompt": "How many users?",
+            "sql_context": "CREATE TABLE users (id INTEGER);",
+            "sql_explanation": "Count the rows.",
+            "sql": "SELECT COUNT(*) FROM users",
+        }) + "\n")
+        result = filter_synsql(path)
+        assert result[0]["question"] == "How many users?"
+        assert "CREATE TABLE users" in result[0]["schema"]
+        assert result[0]["reasoning"] == "Count the rows."
+
 
 class TestTruncateByLength:
     def test_keeps_short(self):

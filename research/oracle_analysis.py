@@ -30,10 +30,12 @@ def pass_at_k(records: list[dict], db_path_fn, k: int, n_permutations: int = 100
     """Fraction of questions where at least one of the first k candidates matches gold."""
     rng = random.Random(seed)
     hits_sum = 0
+    valid_questions = 0
     for record in records:
         gold_fp = _gold_fingerprint(record, db_path_fn)
         if gold_fp is None:
             continue
+        valid_questions += 1
         cands = record["candidates"]
         fps = [c.get("fingerprint") for c in cands]
         question_hits = 0
@@ -44,17 +46,19 @@ def pass_at_k(records: list[dict], db_path_fn, k: int, n_permutations: int = 100
             if any(fps[i] == gold_fp for i in subset):
                 question_hits += 1
         hits_sum += question_hits / n_permutations
-    return hits_sum / len(records) if records else 0.0
+    return hits_sum / valid_questions if valid_questions else 0.0
 
 
 def sc_at_k(records: list[dict], db_path_fn, k: int, n_permutations: int = 100, seed: int = 42) -> float:
     """Self-consistency accuracy: majority-vote fingerprint among first k candidates."""
     rng = random.Random(seed)
     correct_sum = 0
+    valid_questions = 0
     for record in records:
         gold_fp = _gold_fingerprint(record, db_path_fn)
         if gold_fp is None:
             continue
+        valid_questions += 1
         cands = record["candidates"]
         fps = [c.get("fingerprint") for c in cands]
         question_correct = 0
@@ -69,17 +73,19 @@ def sc_at_k(records: list[dict], db_path_fn, k: int, n_permutations: int = 100, 
             if best_fp == gold_fp:
                 question_correct += 1
         correct_sum += question_correct / n_permutations
-    return correct_sum / len(records) if records else 0.0
+    return correct_sum / valid_questions if valid_questions else 0.0
 
 
 def top2_coverage_at_k(records: list[dict], db_path_fn, k: int, n_permutations: int = 100, seed: int = 42) -> float:
     """Fraction of questions where gold is in the top-2 fingerprint groups at step k."""
     rng = random.Random(seed)
     covered_sum = 0
+    valid_questions = 0
     for record in records:
         gold_fp = _gold_fingerprint(record, db_path_fn)
         if gold_fp is None:
             continue
+        valid_questions += 1
         cands = record["candidates"]
         fps = [c.get("fingerprint") for c in cands]
         question_covered = 0
@@ -94,7 +100,7 @@ def top2_coverage_at_k(records: list[dict], db_path_fn, k: int, n_permutations: 
             if gold_fp in top2:
                 question_covered += 1
         covered_sum += question_covered / n_permutations
-    return covered_sum / len(records) if records else 0.0
+    return covered_sum / valid_questions if valid_questions else 0.0
 
 
 def analyze_by_group(

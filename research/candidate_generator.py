@@ -22,6 +22,7 @@ def generate_candidates(
     max_tokens: int = 512,
     max_seq_len: int = 2048,
     seed: int = 42,
+    batch_size: int | None = None,
 ) -> list[dict[str, Any]]:
     """Generate n_candidates SQL outputs per prompt using vLLM.
 
@@ -63,7 +64,11 @@ def generate_candidates(
     )
 
     start = time.perf_counter()
-    outputs = llm.generate(formatted_prompts, params)
+    if batch_size is None or batch_size <= 0:
+        batch_size = len(formatted_prompts) or 1
+    outputs = []
+    for start_idx in range(0, len(formatted_prompts), batch_size):
+        outputs.extend(llm.generate(formatted_prompts[start_idx:start_idx + batch_size], params))
     elapsed = time.perf_counter() - start
 
     from core.sql_extractor import extract_sql
@@ -99,6 +104,7 @@ def generate_candidates(
         results.append({
             "question": prompt_data["question"],
             "db_id": prompt_data["db_id"],
+            "schema": prompt_data.get("schema", {}),
             "gold_sql": prompt_data.get("gold_sql", ""),
             "difficulty": prompt_data.get("difficulty", "unknown"),
             "candidates": candidates,
@@ -135,6 +141,7 @@ def main() -> None:
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--n-candidates", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -148,7 +155,9 @@ def main() -> None:
         schema = get_schema(args.data_dir, r["db_id"])
         prompts.append({**r, "schema": schema})
 
-    results = generate_candidates(args.model, prompts, args.n_candidates, seed=args.seed)
+    results = generate_candidates(
+        args.model, prompts, args.n_candidates, seed=args.seed, batch_size=args.batch_size,
+    )
     save_candidates(results, args.output)
 
 

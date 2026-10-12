@@ -183,7 +183,7 @@ python -m streamlit run app.py
 
 Linux CPU: dùng wheel CPU như Windows. macOS: `python -m pip install torch==2.6.0` rồi cài `requirements-model.txt`; bản demo chạy CPU, chưa có backend MPS.
 
-Colab/Kaggle: đưa thư mục source lên notebook, chuyển working directory vào project, cài hai file requirements, dùng PyTorch GPU có sẵn nếu tương thích. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa kiểm chứng Colab/Kaggle trong phiên triển khai này.
+Kaggle cho pipeline nghiên cứu: xem [KAGGLE.md](KAGGLE.md) và chạy các notebook `00` → `05`. Mỗi notebook tự bootstrap repo/path để có thể chạy ở session độc lập; artifact giữa session nên lưu trong Kaggle Dataset hoặc Hugging Face. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa có GPU Kaggle trong phiên này nên chưa đo runtime thực tế.
 
 ## 8. Dữ liệu: tự tạo gì, tải gì?
 
@@ -199,7 +199,7 @@ Colab/Kaggle: đưa thư mục source lên notebook, chuyển working directory 
 
 ### Dùng BIRD bên ngoài
 
-Nên bắt đầu với [BIRD Mini-Dev chính thức](https://github.com/bird-bench/mini_dev), tải gói SQLite có cả câu hỏi và database. Sau đó có thể dùng [BIRD development](https://bird-bench.github.io/). Không dùng file dự đoán của tác giả làm gold SQL, không chỉ tải JSON mà thiếu DB.
+Luồng notebook hiện dùng **BIRD development đầy đủ** (không dùng Mini-Dev): cần `dev.json` cùng toàn bộ `dev_databases/<db_id>/<db_id>.sqlite`. Trên Kaggle, `notebooks/00_setup.ipynb` ưu tiên dataset đã attach dưới `/kaggle/input` rồi mới tải archive development; không dùng file dự đoán của tác giả làm gold SQL và không chỉ tải JSON mà thiếu DB. Xem thêm [KAGGLE.md](KAGGLE.md) để chạy theo từng session.
 
 Giả sử gói đã tải có `mini_dev_sqlite.json` và cấu trúc `dev_databases/<db_id>/<db_id>.sqlite`:
 
@@ -209,7 +209,7 @@ python -m evaluation.evaluate --backend huggingface --mode greedy --dataset data
 python -m evaluation.run_ablation --backend huggingface --dataset data/benchmarks/bird_eval.json --limit 10
 ```
 
-Thay đường dẫn theo gói thực tế. Importer nhận `SQL` hoặc `sql`, giữ evidence, kiểm tra đường dẫn DB và ghi `db_path` tương đối với JSON đầu ra. Không tự tải hay thay đổi database. Pipeline cũng nhận dataset JSON tự viết theo định dạng này. BIRD chưa được tải/chạy trong phiên triển khai.
+Thay đường dẫn theo gói thực tế. Importer nhận `SQL` hoặc `sql`, giữ evidence, kiểm tra đường dẫn DB và ghi `db_path` tương đối với JSON đầu ra. Không tự tải hay thay đổi database. Pipeline cũng nhận dataset JSON tự viết theo định dạng này. Luồng Kaggle full-dev nằm trong `notebooks/00_setup.ipynb`; việc chạy benchmark thực tế vẫn phụ thuộc GPU/data artifact của session Kaggle.
 
 Tách tập chỉnh ngưỡng và tập đánh giá cuối; báo cáo rõ subset, ngôn ngữ, seed, model, prompt, giới hạn thời gian/kết quả và số câu bị lỗi. Nếu dịch câu hỏi tiếng Anh sang tiếng Việt, kiểm tra bản dịch và báo cáo thành một tập riêng.
 
@@ -327,7 +327,7 @@ Image mặc định mock/CPU, không có PyTorch. Để dùng model thật cần
 
 Chưa có kết quả chứng minh tốt hơn paper. Dataset sinh viên nhỏ và một schema không đo khái quát hóa qua nhiều miền. Mock không phải AI. Các trọng số/threshold cần tuning trên tập riêng. SQL chạy được không bảo đảm đúng nghiệp vụ; trường hợp mọi query cùng trả rỗng dễ tạo đồng thuận sai.
 
-Tiếp theo có thể đánh giá BIRD Mini-Dev, dùng nhiều seed, kiểm định paired theo câu hỏi, mở rộng dữ liệu tiếng Việt được rà soát, chọn schema bằng retrieval, thêm merge CSC thực sự và đo chi phí token. Fine-tuning là dự án thực nghiệm riêng, cần train/dev/test không rò rỉ.
+Tiếp theo có thể chạy một tập con nhỏ để pilot, dùng nhiều seed, kiểm định paired theo câu hỏi, mở rộng dữ liệu tiếng Việt được rà soát, chọn schema bằng retrieval, thêm merge CSC thực sự và đo chi phí token. Fine-tuning là dự án thực nghiệm riêng, cần train/dev/test không rò rỉ.
 
 Ứng dụng dành cho máy local, không cung cấp authentication hoặc sandbox tiến trình đủ cho dịch vụ công khai. Upload luôn được ghi vào tên file tạm do ứng dụng tạo rồi mở read-only; file gốc không bị sửa. Không gửi câu hỏi/database tới API ngoài. Hugging Face chỉ được truy cập khi tải/kiểm tra cache model; đặt local_files_only sau khi tải nếu cần offline. Streamlit telemetry đã tắt.
 

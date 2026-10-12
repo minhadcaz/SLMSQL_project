@@ -1,5 +1,5 @@
 # LoRA hyperparameter grid — Task 3.1
-# Tối đa 6 cấu hình để vừa ngân sách GPU
+# 16 tổ hợp lý thuyết; notebook Kaggle mặc định chỉ chạy 1 cấu hình pilot.
 
 grid:
   ranks: [16, 64]

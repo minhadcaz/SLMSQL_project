@@ -19,6 +19,35 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _question_text(record: dict[str, Any]) -> str:
+    return str(
+        record.get("question")
+        or record.get("sql_prompt")
+        or record.get("prompt")
+        or ""
+    )
+
+
+def _schema_text(record: dict[str, Any]) -> str:
+    return str(
+        record.get("schema")
+        or record.get("db_schema")
+        or record.get("database_schema")
+        or record.get("sql_context")
+        or record.get("context")
+        or ""
+    )
+
+
+def _reasoning_text(record: dict[str, Any]) -> str:
+    return str(
+        record.get("reasoning")
+        or record.get("sql_explanation")
+        or record.get("explanation")
+        or ""
+    )
+
+
 def _sql_hash(sql: str) -> str:
     normalized = " ".join(sql.split()).strip().rstrip(";").lower()
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
@@ -67,7 +96,11 @@ def filter_synsql(raw_path: str | Path) -> list[dict[str, Any]]:
                 continue
             seen_hashes.add(h)
 
-            accepted.append(record)
+            normalized = dict(record)
+            normalized.setdefault("question", _question_text(record))
+            normalized.setdefault("schema", _schema_text(record))
+            normalized.setdefault("reasoning", _reasoning_text(record))
+            accepted.append(normalized)
 
     logger.info(
         "filter_synsql: %d accepted, skipped=%s (from %s)",
@@ -87,10 +120,10 @@ def truncate_by_length(
     kept = []
     for sample in samples:
         text_fields = [
-            str(sample.get("question", "")),
-            str(sample.get("schema", "")),
+            _question_text(sample),
+            _schema_text(sample),
             str(sample.get("sql", sample.get("query", sample.get("gold_sql", "")))),
-            str(sample.get("reasoning", "")),
+            _reasoning_text(sample),
         ]
         total_len = sum(len(f) for f in text_fields)
         if total_len <= max_chars:

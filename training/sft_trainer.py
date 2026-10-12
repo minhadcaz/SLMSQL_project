@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from training.lora_config import LoRAExperiment
+from training.prompt_template import format_sft_messages
 
 logger = logging.getLogger(__name__)
 
@@ -62,42 +63,73 @@ def train(
     raw_data = load_sft_dataset(train_data_path)
 
     def format_record(record):
-        question = record.get("question", "")
+        question = record.get("question") or record.get("sql_prompt") or record.get("prompt", "")
         sql = record.get("sql") or record.get("query") or record.get("gold_sql", "")
-        reasoning = record.get("reasoning", "")
-        if reasoning:
-            text = f"<think>{reasoning}</think>\n<answer>{sql}</answer>"
+        reasoning = record.get("reasoning") or record.get("sql_explanation") or record.get("explanation", "")
+        schema = (
+            record.get("schema")
+            or record.get("db_schema")
+            or record.get("database_schema")
+            or record.get("sql_context")
+            or record.get("context")
+            or ""
+        )
+        evidence = record.get("evidence", "")
+        messages = format_sft_messages(
+            question=question,
+            schema=schema,
+            gold_sql=sql,
+            reasoning=reasoning,
+            evidence=evidence,
+        )
+        if hasattr(tokenizer, "apply_chat_template"):
+            text = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=False,
+            )
         else:
-            text = f"<answer>{sql}</answer>"
+            text = "\n".join(f"<{m['role']}>\n{m['content']}" for m in messages)
         return {"text": text}
 
     dataset = Dataset.from_list([format_record(r) for r in raw_data])
 
-    training_args = SFTConfig(
-        output_dir=str(output_dir),
-        per_device_train_batch_size=experiment.per_device_train_batch_size,
-        gradient_accumulation_steps=experiment.gradient_accumulation_steps,
-        warmup_ratio=experiment.warmup_ratio,
-        num_train_epochs=experiment.num_train_epochs,
-        learning_rate=experiment.learning_rate,
-        fp16=experiment.dtype == "float16",
-        bf16=experiment.dtype == "bfloat16",
-        logging_steps=experiment.logging_steps,
-        save_steps=experiment.save_steps,
-        save_total_limit=3,
-        seed=experiment.seed,
-        weight_decay=experiment.weight_decay,
-        max_seq_length=experiment.max_seq_len,
-        dataset_text_field="text",
-        report_to="none",
-    )
+    training_kwargs = {
+        "output_dir": str(output_dir),
+        "per_device_train_batch_size": experiment.per_device_train_batch_size,
+        "gradient_accumulation_steps": experiment.gradient_accumulation_steps,
+        "warmup_ratio": experiment.warmup_ratio,
+        "num_train_epochs": experiment.num_train_epochs,
+        "learning_rate": experiment.learning_rate,
+        "fp16": experiment.dtype == "float16",
+        "bf16": experiment.dtype == "bfloat16",
+        "logging_steps": experiment.logging_steps,
+        "save_steps": experiment.save_steps,
+        "save_total_limit": 3,
+        "seed": experiment.seed,
+        "weight_decay": experiment.weight_decay,
+        "dataset_text_field": "text",
+        "report_to": "none",
+    }
+    # TRL 0.12 used max_seq_length; newer TRL releases renamed it max_length.
+    try:
+        training_args = SFTConfig(max_seq_length=experiment.max_seq_len, **training_kwargs)
+    except TypeError as exc:
+        if "max_seq_length" not in str(exc):
+            raise
+        training_args = SFTConfig(max_length=experiment.max_seq_len, **training_kwargs)
 
-    trainer = SFTTrainer(
-        model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        args=training_args,
-    )
+    trainer_kwargs = {
+        "model": model,
+        "train_dataset": dataset,
+        "args": training_args,
+    }
+    try:
+        trainer = SFTTrainer(tokenizer=tokenizer, **trainer_kwargs)
+    except TypeError as exc:
+        if "tokenizer" not in str(exc):
+            raise
+        trainer = SFTTrainer(processing_class=tokenizer, **trainer_kwargs)
 
     if resume_from and Path(resume_from).exists():
         logger.info("Resuming from checkpoint: %s", resume_from)
@@ -105,13 +137,23 @@ def train(
     else:
         trainer.train()
 
-    trainer.save_model(str(output_dir / "final_adapter"))
+    adapter_dir = output_dir / "final_adapter"
+    trainer.save_model(str(adapter_dir))
+    tokenizer.save_pretrained(str(adapter_dir))
+
+    final_loss = None
+    for event in reversed(getattr(trainer.state, "log_history", [])):
+        if event.get("loss") is not None:
+            final_loss = float(event["loss"])
+            break
 
     stats = {
         "experiment": experiment.name,
         "model": experiment.model_id,
         "train_samples": len(dataset),
         "output_dir": str(output_dir),
+        "adapter_path": str(adapter_dir),
+        "final_loss": final_loss,
         "config": asdict(experiment),
     }
     with open(output_dir / "train_stats.json", "w", encoding="utf-8") as f:

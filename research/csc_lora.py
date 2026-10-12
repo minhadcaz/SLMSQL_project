@@ -49,6 +49,7 @@ def build_csc_training_data(
         pairs.append({
             "question": record["question"],
             "db_id": record["db_id"],
+            "schema": record.get("schema", {}),
             "sql_a": sql_a,
             "sql_b": sql_b,
             "gold_sql": gold_sql,
@@ -71,11 +72,14 @@ def build_csc_training_data(
 
 def format_csc_prompt(question: str, schema: str, sql_a: str, sql_b: str) -> str:
     """Format a CSC merge-correct prompt."""
+    from core.schema_inspector import SchemaInspector
+
+    schema_text = SchemaInspector.format(schema) if isinstance(schema, dict) else str(schema)
     return (
         f"Given the question and database schema, two candidate SQL queries are provided. "
         f"Analyze both candidates and produce the correct SQL query.\n\n"
         f"Question: {question}\n\n"
-        f"Schema:\n{schema}\n\n"
+        f"Schema:\n{schema_text}\n\n"
         f"Candidate A:\n```sql\n{sql_a}\n```\n\n"
         f"Candidate B:\n```sql\n{sql_b}\n```\n\n"
         f"Produce the correct SQL query."
@@ -104,7 +108,9 @@ def train_csc_lora(
 
     texts = []
     for p in pairs:
-        prompt = format_csc_prompt(p["question"], "", p["sql_a"], p["sql_b"])
+        prompt = format_csc_prompt(
+            p["question"], p.get("schema", ""), p["sql_a"], p["sql_b"]
+        )
         texts.append({"text": f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n{p['gold_sql']}<|im_end|>"})
 
     dataset = Dataset.from_list(texts)
@@ -122,20 +128,32 @@ def train_csc_lora(
     )
 
     output_path = Path(output_path)
-    config = SFTConfig(
-        output_dir=str(output_path),
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=4,
-        num_train_epochs=epochs,
-        learning_rate=lr,
-        fp16=True, bf16=False,
-        logging_steps=50,
-        save_strategy="epoch",
-        dataset_text_field="text",
-        max_seq_length=max_seq_len,
-    )
+    config_kwargs = {
+        "output_dir": str(output_path),
+        "per_device_train_batch_size": 4,
+        "gradient_accumulation_steps": 4,
+        "num_train_epochs": epochs,
+        "learning_rate": lr,
+        "fp16": True,
+        "bf16": False,
+        "logging_steps": 50,
+        "save_strategy": "epoch",
+        "dataset_text_field": "text",
+    }
+    try:
+        config = SFTConfig(max_seq_length=max_seq_len, **config_kwargs)
+    except TypeError as exc:
+        if "max_seq_length" not in str(exc):
+            raise
+        config = SFTConfig(max_length=max_seq_len, **config_kwargs)
 
-    trainer = SFTTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=config)
+    trainer_kwargs = {"model": model, "train_dataset": dataset, "args": config}
+    try:
+        trainer = SFTTrainer(tokenizer=tokenizer, **trainer_kwargs)
+    except TypeError as exc:
+        if "tokenizer" not in str(exc):
+            raise
+        trainer = SFTTrainer(processing_class=tokenizer, **trainer_kwargs)
     trainer.train()
     model.save_pretrained(str(output_path / "final"))
     tokenizer.save_pretrained(str(output_path / "final"))

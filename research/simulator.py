@@ -32,11 +32,13 @@ def simulate_one(
 ) -> dict[str, Any]:
     """Simulate a policy on one question with a given candidate permutation.
 
-    Returns dict with: correct, n_samples_used, action_taken.
+    Returns dict with: correct, n_samples_used, action, and csc_called.
     """
     candidates = record["candidates"]
     seen: list[dict] = []
     n_used = 0
+    stop = False
+    action = "SAMPLE_MORE"
 
     for start in range(0, len(permutation), batch_size):
         batch_indices = permutation[start:start + batch_size]
@@ -54,7 +56,8 @@ def simulate_one(
     return {
         "correct": correct,
         "n_samples_used": n_used,
-        "action": action if not stop else "STOP",
+        "action": action,
+        "csc_called": action == "CALL_CSC",
     }
 
 
@@ -72,6 +75,7 @@ def simulate_policy(
     rng = random.Random(seed)
     all_correct = []
     all_samples = []
+    total_csc_calls = 0
 
     for record in records:
         gold_sql = record.get("gold_sql", "")
@@ -90,13 +94,17 @@ def simulate_policy(
             result = simulate_one(record, policy, gold_fp, perm, batch_size)
             question_correct += int(result["correct"])
             question_samples += result["n_samples_used"]
+            total_csc_calls += int(result["csc_called"])
 
         all_correct.append(question_correct / n_permutations)
         all_samples.append(question_samples / n_permutations)
 
     n = len(all_correct)
     if n == 0:
-        return {"ex_mean": 0.0, "ex_ci95": 0.0, "avg_samples": 0.0, "n_questions": 0}
+        return {
+            "ex_mean": 0.0, "ex_ci95": 0.0, "avg_samples": 0.0,
+            "csc_calls": 0, "n_questions": 0,
+        }
 
     ex_mean = sum(all_correct) / n
     ex_std = math.sqrt(sum((x - ex_mean) ** 2 for x in all_correct) / n)
@@ -108,6 +116,7 @@ def simulate_policy(
         "ex_mean": round(ex_mean, 4),
         "ex_ci95": round(ex_ci95, 4),
         "avg_samples": round(avg_samples, 2),
+        "csc_calls": total_csc_calls,
         "n_questions": n,
         "n_permutations": n_permutations,
     }

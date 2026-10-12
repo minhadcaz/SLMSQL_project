@@ -22,7 +22,7 @@ SYSTEM_MESSAGE = (
 
 def format_sft_messages(
     question: str,
-    schema: dict[str, Any],
+    schema: dict[str, Any] | str,
     gold_sql: str,
     reasoning: str = "",
     evidence: str = "",

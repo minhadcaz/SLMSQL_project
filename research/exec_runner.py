@@ -5,6 +5,7 @@ import json
 import logging
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -33,17 +34,15 @@ def _exec_one(sql: str, db_path: str, timeout: int = 30) -> dict[str, Any]:
 
     start = _time.perf_counter()
     try:
-        conn = open_readonly(db_path)
-        deadline = _time.monotonic() + timeout
-        conn.set_progress_handler(lambda: int(_time.monotonic() >= deadline), 1000)
-        cursor = conn.execute(sql)
-        if cursor.description is None:
-            result["error"] = "no_result_set"
-            conn.close()
-            return result
-        rows = cursor.fetchall()
-        col_count = len(cursor.description)
-        conn.close()
+        with closing(open_readonly(db_path)) as conn:
+            deadline = _time.monotonic() + timeout
+            conn.set_progress_handler(lambda: int(_time.monotonic() >= deadline), 1000)
+            with closing(conn.execute(sql)) as cursor:
+                if cursor.description is None:
+                    result["error"] = "no_result_set"
+                    return result
+                rows = cursor.fetchall()
+                col_count = len(cursor.description)
 
         ordered = requires_order(sql)
         result["fingerprint"] = fingerprint(rows, col_count, ordered)
@@ -91,6 +90,7 @@ def execute_candidates(
             out_record = {
                 "question": record["question"],
                 "db_id": record["db_id"],
+                "schema": record.get("schema", {}),
                 "gold_sql": record.get("gold_sql", ""),
                 "difficulty": record.get("difficulty", "unknown"),
                 "candidates": [
