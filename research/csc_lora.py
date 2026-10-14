@@ -20,16 +20,26 @@ def build_csc_training_data(
 ) -> dict[str, int]:
     """Build CSC training data: pairs of top-2 candidate SQLs → gold SQL."""
     from research.exec_runner import _exec_one
+    from core.schema_inspector import SchemaInspector
 
     pairs = []
+    inspector = SchemaInspector(sample_rows=2, max_tables=100, max_columns=300)
+    schema_cache: dict[str, dict[str, Any]] = {}
     for record in exec_records:
         gold_sql = record.get("gold_sql", "")
         if not gold_sql:
             continue
-        gold_result = _exec_one(gold_sql, str(db_path_fn(record["db_id"])))
+        db_path = str(db_path_fn(record["db_id"]))
+        gold_result = _exec_one(gold_sql, db_path)
         gold_fp = gold_result["fingerprint"]
         if gold_fp is None:
             continue
+
+        schema = record.get("schema")
+        if not schema:
+            if db_path not in schema_cache:
+                schema_cache[db_path] = inspector.inspect(db_path)
+            schema = schema_cache[db_path]
 
         cands = record["candidates"]
         fps_to_sql: dict[str, list[str]] = {}
@@ -49,7 +59,7 @@ def build_csc_training_data(
         pairs.append({
             "question": record["question"],
             "db_id": record["db_id"],
-            "schema": record.get("schema", {}),
+            "schema": schema,
             "sql_a": sql_a,
             "sql_b": sql_b,
             "gold_sql": gold_sql,
@@ -99,6 +109,7 @@ def train_csc_lora(
     from unsloth import FastLanguageModel
     from trl import SFTTrainer, SFTConfig
     from datasets import Dataset
+    import torch
 
     pairs = []
     with open(training_data_path, encoding="utf-8") as f:
@@ -106,21 +117,32 @@ def train_csc_lora(
             if line.strip():
                 pairs.append(json.loads(line))
 
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        base_adapter_path,
+        max_seq_length=max_seq_len,
+        dtype=torch.float16,
+        load_in_4bit=True,
+    )
+
+    # Use the tokenizer's chat template for both training and inference. This
+    # avoids depending on Qwen-specific special-token spelling in the dataset.
     texts = []
     for p in pairs:
         prompt = format_csc_prompt(
             p["question"], p.get("schema", ""), p["sql_a"], p["sql_b"]
         )
-        texts.append({"text": f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n{p['gold_sql']}<|im_end|>"})
+        messages = [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": p["gold_sql"]},
+        ]
+        texts.append({
+            "text": tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=False,
+            )
+        })
 
     dataset = Dataset.from_list(texts)
 
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        base_adapter_path,
-        max_seq_length=max_seq_len,
-        dtype=None,
-        load_in_4bit=True,
-    )
     model = FastLanguageModel.get_peft_model(
         model, r=lora_rank, lora_alpha=lora_rank,
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],

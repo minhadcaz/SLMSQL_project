@@ -1,0 +1,1005 @@
+[
+  {
+    "id": "q001",
+    "question": "How many customers are in the database?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS customer_count FROM customers",
+    "difficulty": "easy",
+    "tags": [
+      "count"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q002",
+    "question": "Có bao nhiêu khách hàng đang hoạt động?",
+    "language": "VI",
+    "gold_sql": "SELECT COUNT(*) AS customer_count FROM customers WHERE status = 'active'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q003",
+    "question": "List all customer names alphabetically.",
+    "language": "EN",
+    "gold_sql": "SELECT customer_name FROM customers ORDER BY customer_name",
+    "difficulty": "easy",
+    "tags": [
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q004",
+    "question": "Liệt kê khách hàng ở Hà Nội.",
+    "language": "VI",
+    "gold_sql": "SELECT customer_name FROM customers WHERE city = 'Ha Noi' ORDER BY customer_id",
+    "difficulty": "easy",
+    "tags": [
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q005",
+    "question": "What is the largest customer credit limit?",
+    "language": "EN",
+    "gold_sql": "SELECT MAX(credit_limit) AS max_credit_limit FROM customers",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q006",
+    "question": "Hạn mức tín dụng trung bình của khách hàng là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT AVG(credit_limit) AS average_credit_limit FROM customers",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q007",
+    "question": "Which customers belong to the Enterprise segment?",
+    "language": "EN",
+    "gold_sql": "SELECT customer_name FROM customers WHERE segment = 'Enterprise' ORDER BY customer_id",
+    "difficulty": "easy",
+    "tags": [
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q008",
+    "question": "Khách hàng nào được tạo từ năm 2024 trở đi?",
+    "language": "VI",
+    "gold_sql": "SELECT customer_name FROM customers WHERE created_at >= '2024-01-01' ORDER BY created_at",
+    "difficulty": "easy",
+    "tags": [
+      "date",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q009",
+    "question": "How many products are currently active?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS active_products FROM products WHERE active = 1",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q010",
+    "question": "Có bao nhiêu sản phẩm thuộc nhóm Hardware?",
+    "language": "VI",
+    "gold_sql": "SELECT COUNT(*) AS hardware_products FROM products WHERE category = 'Hardware'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q011",
+    "question": "Show product names and prices from highest to lowest price.",
+    "language": "EN",
+    "gold_sql": "SELECT product_name, unit_price FROM products ORDER BY unit_price DESC, product_id",
+    "difficulty": "easy",
+    "tags": [
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q012",
+    "question": "Sản phẩm nào đang hết hàng?",
+    "language": "VI",
+    "gold_sql": "SELECT product_name FROM products WHERE stock_qty = 0 ORDER BY product_id",
+    "difficulty": "easy",
+    "tags": [
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q013",
+    "question": "What is the total value of all product stock at selling price?",
+    "language": "EN",
+    "gold_sql": "SELECT SUM(stock_qty * unit_price) AS stock_value FROM products",
+    "difficulty": "medium",
+    "tags": [
+      "aggregate",
+      "arithmetic"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q014",
+    "question": "Giá bán cao nhất của sản phẩm đang hoạt động là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT MAX(unit_price) AS max_active_price FROM products WHERE active = 1",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q015",
+    "question": "How many quotations were accepted?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS accepted_quotes FROM quotations WHERE status = 'accepted'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q016",
+    "question": "Tổng giá trị báo giá đã chấp nhận là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT SUM(total_amount) AS accepted_quote_value FROM quotations WHERE status = 'accepted'",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q017",
+    "question": "List quotation IDs that expired before April 2024.",
+    "language": "EN",
+    "gold_sql": "SELECT quote_id FROM quotations WHERE status = 'expired' AND valid_until < '2024-04-01' ORDER BY quote_id",
+    "difficulty": "medium",
+    "tags": [
+      "date",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q018",
+    "question": "Báo giá trung bình theo nhân viên kinh doanh là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT sales_rep, AVG(total_amount) AS average_quote FROM quotations GROUP BY sales_rep ORDER BY sales_rep",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q019",
+    "question": "Which customer received the highest quotation?",
+    "language": "EN",
+    "gold_sql": "SELECT c.customer_name, q.total_amount FROM quotations q JOIN customers c ON c.customer_id = q.customer_id ORDER BY q.total_amount DESC, q.quote_id LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "join",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q020",
+    "question": "Có bao nhiêu báo giá của khách hàng doanh nghiệp?",
+    "language": "VI",
+    "gold_sql": "SELECT COUNT(*) AS enterprise_quotes FROM quotations q JOIN customers c ON c.customer_id = q.customer_id WHERE c.segment = 'Enterprise'",
+    "difficulty": "medium",
+    "tags": [
+      "join",
+      "count"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q021",
+    "question": "How many orders were delivered?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS delivered_orders FROM orders WHERE status = 'delivered'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q022",
+    "question": "Tổng doanh thu từ các đơn hàng đã giao là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT SUM(total_amount) AS delivered_revenue FROM orders WHERE status = 'delivered'",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q023",
+    "question": "List orders placed in June 2024.",
+    "language": "EN",
+    "gold_sql": "SELECT order_id, order_date FROM orders WHERE order_date >= '2024-06-01' AND order_date < '2024-07-01' ORDER BY order_date",
+    "difficulty": "medium",
+    "tags": [
+      "date",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q024",
+    "question": "Đơn hàng nào có tổng tiền lớn hơn 5.000?",
+    "language": "VI",
+    "gold_sql": "SELECT order_id, total_amount FROM orders WHERE total_amount > 5000 ORDER BY total_amount DESC",
+    "difficulty": "easy",
+    "tags": [
+      "filter",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q025",
+    "question": "What is the average order value by order status?",
+    "language": "EN",
+    "gold_sql": "SELECT status, AVG(total_amount) AS average_order_value FROM orders GROUP BY status ORDER BY status",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q026",
+    "question": "Số lượng sản phẩm đã bán theo từng mã sản phẩm là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT product_id, SUM(quantity) AS units_sold FROM orders GROUP BY product_id ORDER BY product_id",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q027",
+    "question": "Which product generated the highest delivered revenue?",
+    "language": "EN",
+    "gold_sql": "SELECT p.product_name, SUM(o.total_amount) AS revenue FROM orders o JOIN products p ON p.product_id = o.product_id WHERE o.status = 'delivered' GROUP BY p.product_id, p.product_name ORDER BY revenue DESC LIMIT 1",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q028",
+    "question": "Khách hàng nào có tổng giá trị đơn hàng cao nhất?",
+    "language": "VI",
+    "gold_sql": "SELECT c.customer_name, SUM(o.total_amount) AS total_spend FROM orders o JOIN customers c ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.customer_name ORDER BY total_spend DESC LIMIT 1",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q029",
+    "question": "How many orders do not have a quotation?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS orders_without_quote FROM orders WHERE quote_id IS NULL",
+    "difficulty": "easy",
+    "tags": [
+      "null",
+      "count"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q030",
+    "question": "Đơn hàng nào đang ở trạng thái processing hoặc shipped?",
+    "language": "VI",
+    "gold_sql": "SELECT order_id, status FROM orders WHERE status IN ('processing', 'shipped') ORDER BY order_id",
+    "difficulty": "easy",
+    "tags": [
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q031",
+    "question": "What is the total quantity ordered by Enterprise customers?",
+    "language": "EN",
+    "gold_sql": "SELECT SUM(o.quantity) AS enterprise_quantity FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE c.segment = 'Enterprise'",
+    "difficulty": "medium",
+    "tags": [
+      "join",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q032",
+    "question": "Doanh thu giao hàng theo thành phố khách hàng là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT c.city, SUM(o.total_amount) AS delivered_revenue FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'delivered' GROUP BY c.city ORDER BY c.city",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q033",
+    "question": "Which customer has never placed an order?",
+    "language": "EN",
+    "gold_sql": "SELECT c.customer_name FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id WHERE o.order_id IS NULL ORDER BY c.customer_id",
+    "difficulty": "hard",
+    "tags": [
+      "left_join",
+      "null"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q034",
+    "question": "Khách hàng nào đã đặt ít nhất hai đơn hàng?",
+    "language": "VI",
+    "gold_sql": "SELECT c.customer_name, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON o.customer_id = c.customer_id GROUP BY c.customer_id, c.customer_name HAVING COUNT(o.order_id) >= 2 ORDER BY c.customer_id",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "having"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q035",
+    "question": "What is the gross margin on delivered orders?",
+    "language": "EN",
+    "gold_sql": "SELECT SUM(o.quantity * (o.unit_price - p.cost_price)) AS gross_margin FROM orders o JOIN products p ON p.product_id = o.product_id WHERE o.status = 'delivered'",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "arithmetic"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q036",
+    "question": "Tổng tiền thuế của các đơn hàng đã giao là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT SUM(tax_amount) AS delivered_tax FROM orders WHERE status = 'delivered'",
+    "difficulty": "easy",
+    "tags": [
+      "aggregate",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q037",
+    "question": "How many invoices are overdue or still open?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS unpaid_invoices FROM invoices WHERE status IN ('overdue', 'open')",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q038",
+    "question": "Tổng số tiền còn phải thu trên các hóa đơn là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT SUM(total_amount - paid_amount) AS outstanding_amount FROM invoices WHERE status IN ('open', 'overdue')",
+    "difficulty": "medium",
+    "tags": [
+      "arithmetic",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q039",
+    "question": "List invoice IDs with a remaining balance.",
+    "language": "EN",
+    "gold_sql": "SELECT invoice_id, total_amount - paid_amount AS balance FROM invoices WHERE total_amount > paid_amount ORDER BY invoice_id",
+    "difficulty": "medium",
+    "tags": [
+      "arithmetic",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q040",
+    "question": "Hóa đơn nào đã thanh toán đầy đủ?",
+    "language": "VI",
+    "gold_sql": "SELECT invoice_id FROM invoices WHERE paid_amount = total_amount ORDER BY invoice_id",
+    "difficulty": "easy",
+    "tags": [
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q041",
+    "question": "What is the average invoice amount by invoice status?",
+    "language": "EN",
+    "gold_sql": "SELECT status, AVG(total_amount) AS average_invoice FROM invoices GROUP BY status ORDER BY status",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q042",
+    "question": "Tổng tiền hóa đơn theo tháng phát hành là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT substr(invoice_date, 1, 7) AS invoice_month, SUM(total_amount) AS monthly_total FROM invoices GROUP BY invoice_month ORDER BY invoice_month",
+    "difficulty": "hard",
+    "tags": [
+      "date",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q043",
+    "question": "Which customers have overdue invoices?",
+    "language": "EN",
+    "gold_sql": "SELECT DISTINCT c.customer_name FROM invoices i JOIN orders o ON o.order_id = i.order_id JOIN customers c ON c.customer_id = o.customer_id WHERE i.status = 'overdue' ORDER BY c.customer_name",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "distinct"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q044",
+    "question": "Khách hàng nào có tổng số tiền hóa đơn lớn nhất?",
+    "language": "VI",
+    "gold_sql": "SELECT c.customer_name, SUM(i.total_amount) AS invoice_total FROM invoices i JOIN orders o ON o.order_id = i.order_id JOIN customers c ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.customer_name ORDER BY invoice_total DESC LIMIT 1",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q045",
+    "question": "How many expenses are approved?",
+    "language": "EN",
+    "gold_sql": "SELECT COUNT(*) AS approved_expenses FROM expenses WHERE status = 'approved'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q046",
+    "question": "Tổng chi phí theo danh mục là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT category, SUM(amount) AS total_expense FROM expenses GROUP BY category ORDER BY category",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q047",
+    "question": "Which vendor received the highest total expense?",
+    "language": "EN",
+    "gold_sql": "SELECT vendor_name, SUM(amount) AS total_expense FROM expenses GROUP BY vendor_name ORDER BY total_expense DESC LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q048",
+    "question": "Có bao nhiêu chi phí chưa được duyệt?",
+    "language": "VI",
+    "gold_sql": "SELECT COUNT(*) AS pending_expenses FROM expenses WHERE status = 'pending'",
+    "difficulty": "easy",
+    "tags": [
+      "count",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q049",
+    "question": "What was the total shipping expense in the second quarter of 2024?",
+    "language": "EN",
+    "gold_sql": "SELECT SUM(amount) AS shipping_q2_expense FROM expenses WHERE category = 'shipping' AND expense_date >= '2024-04-01' AND expense_date < '2024-07-01'",
+    "difficulty": "medium",
+    "tags": [
+      "date",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q050",
+    "question": "Chi phí nào không gắn với đơn hàng?",
+    "language": "VI",
+    "gold_sql": "SELECT expense_id, amount FROM expenses WHERE order_id IS NULL ORDER BY expense_id",
+    "difficulty": "easy",
+    "tags": [
+      "null",
+      "filter"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q051",
+    "question": "Which order has the largest related expense?",
+    "language": "EN",
+    "gold_sql": "SELECT o.order_id, e.amount FROM expenses e JOIN orders o ON o.order_id = e.order_id ORDER BY e.amount DESC, o.order_id LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "join",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q052",
+    "question": "Tổng chi phí liên quan đến các đơn đã giao là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT SUM(e.amount) AS delivered_order_expense FROM expenses e JOIN orders o ON o.order_id = e.order_id WHERE o.status = 'delivered'",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q053",
+    "question": "Which active product has the highest margin per unit?",
+    "language": "EN",
+    "gold_sql": "SELECT product_name, unit_price - cost_price AS margin FROM products WHERE active = 1 ORDER BY margin DESC LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "arithmetic",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q054",
+    "question": "Sản phẩm nào có giá bán cao hơn giá trung bình?",
+    "language": "VI",
+    "gold_sql": "SELECT product_name, unit_price FROM products WHERE unit_price > (SELECT AVG(unit_price) FROM products) ORDER BY unit_price DESC",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q055",
+    "question": "Which customers have a credit limit above the average?",
+    "language": "EN",
+    "gold_sql": "SELECT customer_name, credit_limit FROM customers WHERE credit_limit > (SELECT AVG(credit_limit) FROM customers) ORDER BY credit_limit DESC",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q056",
+    "question": "Đơn hàng có giá trị cao hơn giá trị trung bình là những đơn nào?",
+    "language": "VI",
+    "gold_sql": "SELECT order_id, total_amount FROM orders WHERE total_amount > (SELECT AVG(total_amount) FROM orders) ORDER BY total_amount DESC",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q057",
+    "question": "What percentage of customers are active?",
+    "language": "EN",
+    "gold_sql": "SELECT 100.0 * SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) / COUNT(*) AS active_percentage FROM customers",
+    "difficulty": "hard",
+    "tags": [
+      "case",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q058",
+    "question": "Tỷ lệ hóa đơn đã thanh toán đầy đủ là bao nhiêu phần trăm?",
+    "language": "VI",
+    "gold_sql": "SELECT 100.0 * SUM(CASE WHEN paid_amount = total_amount THEN 1 ELSE 0 END) / COUNT(*) AS paid_percentage FROM invoices",
+    "difficulty": "hard",
+    "tags": [
+      "case",
+      "aggregate"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q059",
+    "question": "For each sales representative, show accepted quotation value and order value.",
+    "language": "EN",
+    "gold_sql": "SELECT s.sales_rep, COALESCE(q.quote_value, 0) AS accepted_quote_value, COALESCE(o.order_value, 0) AS order_value FROM (SELECT DISTINCT sales_rep FROM quotations UNION SELECT DISTINCT sales_rep FROM orders) s LEFT JOIN (SELECT sales_rep, SUM(total_amount) AS quote_value FROM quotations WHERE status = 'accepted' GROUP BY sales_rep) q ON q.sales_rep = s.sales_rep LEFT JOIN (SELECT sales_rep, SUM(total_amount) AS order_value FROM orders GROUP BY sales_rep) o ON o.sales_rep = s.sales_rep ORDER BY s.sales_rep",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "join"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q060",
+    "question": "Nhân viên nào có giá trị đơn hàng đã giao cao nhất?",
+    "language": "VI",
+    "gold_sql": "SELECT sales_rep, SUM(total_amount) AS delivered_value FROM orders WHERE status = 'delivered' GROUP BY sales_rep ORDER BY delivered_value DESC LIMIT 1",
+    "difficulty": "medium",
+    "tags": [
+      "group",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q061",
+    "question": "Which customer placed the most units across all orders?",
+    "language": "EN",
+    "gold_sql": "SELECT c.customer_name, SUM(o.quantity) AS units FROM orders o JOIN customers c ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.customer_name ORDER BY units DESC LIMIT 1",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q062",
+    "question": "Khách hàng nào có đơn hàng bị hủy?",
+    "language": "VI",
+    "gold_sql": "SELECT DISTINCT c.customer_name FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE o.status = 'cancelled' ORDER BY c.customer_name",
+    "difficulty": "medium",
+    "tags": [
+      "join",
+      "distinct"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q063",
+    "question": "What is the most expensive product in each category?",
+    "language": "EN",
+    "gold_sql": "SELECT p.category, p.product_name, p.unit_price FROM products p WHERE p.unit_price = (SELECT MAX(p2.unit_price) FROM products p2 WHERE p2.category = p.category) ORDER BY p.category",
+    "difficulty": "hard",
+    "tags": [
+      "correlated_subquery",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q064",
+    "question": "Trong mỗi trạng thái đơn hàng, đơn nào có tổng tiền lớn nhất?",
+    "language": "VI",
+    "gold_sql": "SELECT o.status, o.order_id, o.total_amount FROM orders o WHERE o.total_amount = (SELECT MAX(o2.total_amount) FROM orders o2 WHERE o2.status = o.status) ORDER BY o.status",
+    "difficulty": "hard",
+    "tags": [
+      "correlated_subquery",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q065",
+    "question": "Which products have never appeared in an order?",
+    "language": "EN",
+    "gold_sql": "SELECT p.product_name FROM products p LEFT JOIN orders o ON o.product_id = p.product_id WHERE o.order_id IS NULL ORDER BY p.product_id",
+    "difficulty": "hard",
+    "tags": [
+      "left_join",
+      "null"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q066",
+    "question": "Sản phẩm nào đã xuất hiện trong cả đơn hàng đã giao và đơn đang xử lý?",
+    "language": "VI",
+    "gold_sql": "SELECT p.product_name FROM products p JOIN orders delivered ON delivered.product_id = p.product_id AND delivered.status = 'delivered' JOIN orders processing ON processing.product_id = p.product_id AND processing.status = 'processing' GROUP BY p.product_id, p.product_name ORDER BY p.product_id",
+    "difficulty": "hard",
+    "tags": [
+      "self_join",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q067",
+    "question": "How much revenue remains after approved expenses for delivered orders?",
+    "language": "EN",
+    "gold_sql": "SELECT (SELECT SUM(total_amount) FROM orders WHERE status = 'delivered') - (SELECT SUM(e.amount) FROM expenses e JOIN orders o ON o.order_id = e.order_id WHERE o.status = 'delivered' AND e.status = 'approved') AS net_revenue",
+    "difficulty": "hard",
+    "tags": [
+      "subquery",
+      "arithmetic"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q068",
+    "question": "Lợi nhuận gộp theo danh mục sản phẩm từ đơn đã giao là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT p.category, SUM(o.quantity * (o.unit_price - p.cost_price)) AS gross_margin FROM orders o JOIN products p ON p.product_id = o.product_id WHERE o.status = 'delivered' GROUP BY p.category ORDER BY p.category",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "group",
+      "arithmetic"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q069",
+    "question": "Show customers whose total delivered revenue exceeds 5,000.",
+    "language": "EN",
+    "gold_sql": "SELECT c.customer_name, SUM(o.total_amount) AS delivered_revenue FROM customers c JOIN orders o ON o.customer_id = c.customer_id WHERE o.status = 'delivered' GROUP BY c.customer_id, c.customer_name HAVING SUM(o.total_amount) > 5000 ORDER BY delivered_revenue DESC",
+    "difficulty": "hard",
+    "tags": [
+      "join",
+      "having"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q070",
+    "question": "Khách hàng nào có cả báo giá được chấp nhận và hóa đơn đã thanh toán?",
+    "language": "VI",
+    "gold_sql": "SELECT c.customer_name FROM customers c WHERE EXISTS (SELECT 1 FROM quotations q WHERE q.customer_id = c.customer_id AND q.status = 'accepted') AND EXISTS (SELECT 1 FROM invoices i JOIN orders o ON o.order_id = i.order_id WHERE o.customer_id = c.customer_id AND i.status = 'paid') ORDER BY c.customer_id",
+    "difficulty": "hard",
+    "tags": [
+      "exists",
+      "join"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q071",
+    "question": "What is the month with the highest order revenue?",
+    "language": "EN",
+    "gold_sql": "SELECT substr(order_date, 1, 7) AS order_month, SUM(total_amount) AS revenue FROM orders GROUP BY order_month ORDER BY revenue DESC, order_month LIMIT 1",
+    "difficulty": "hard",
+    "tags": [
+      "date",
+      "group",
+      "order"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  },
+  {
+    "id": "q072",
+    "question": "Tổng giá trị đơn hàng của khách hàng Enterprise theo từng tháng là bao nhiêu?",
+    "language": "VI",
+    "gold_sql": "SELECT substr(o.order_date, 1, 7) AS order_month, SUM(o.total_amount) AS enterprise_revenue FROM orders o JOIN customers c ON c.customer_id = o.customer_id WHERE c.segment = 'Enterprise' GROUP BY order_month ORDER BY order_month",
+    "difficulty": "hard",
+    "tags": [
+      "date",
+      "join",
+      "group"
+    ],
+    "source": "synthetic_business_v1",
+    "db_id": "business",
+    "db_path": "business.sqlite"
+  }
+]
