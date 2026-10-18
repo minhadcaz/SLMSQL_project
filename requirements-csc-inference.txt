@@ -1,0 +1,6 @@
+# Install in a CUDA inference session. vLLM selects a compatible torch/transformers stack.
+# No Unsloth, TRL, SFT dataset download, or training stack is needed here.
+PyYAML>=6.0,<7
+sqlglot==26.16.4
+huggingface-hub>=0.24,<2
+vllm>=0.8,<1

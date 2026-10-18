@@ -19,3 +19,5 @@ data/synsql/
 *.jsonl
 wandb/
 *.gguf
+
+.venv-csc/

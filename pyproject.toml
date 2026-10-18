@@ -1,10 +1,11 @@
 [project]
 name = "slm-sql-research"
 version = "0.1.0"
-description = "LoRA SLM Text-to-SQL + Adaptive Sampling Research"
+description = "Author SLM-SQL baseline and CSC LoRA adaptation with paired evaluation"
 requires-python = ">=3.10"
 
 [project.scripts]
+slm-sql-csc = "research.slm_sql.__main__:main"
 eval-bird = "benchmarks.eval_ex:main"
 data-prep = "training.data_prep:main"
 gen-candidates = "research.candidate_generator:main"

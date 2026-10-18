@@ -1,5 +1,12 @@
 # Adaptive SLM SQL
 
+> **Luồng nghiên cứu chính: cải tiến CSC trên SLM-SQL của tác giả bằng LoRA.**
+> Dùng notebook **09 → 10 → 11**; xem [quy trình CSC LoRA](docs/CSC_LORA.md) và
+> [hướng dẫn Kaggle](KAGGLE.md). Xem [từng notebook 00–11](docs/NOTEBOOKS_00_11.md)
+> để biết input/output, path, phiên bản và upload adapter. Baseline dùng generator + merger đã SFT + GRPO;
+> adapter chỉ huấn luyện trên train, rồi so sánh CSC gốc/LoRA cùng candidate cache.
+> Các notebook Qwen SFT/adaptive cũ là nhánh tùy chọn, không phải baseline SLM-SQL đầy đủ.
+
 **Mới clone repo?** Xem [SETUP.md — cài đặt, tải model và chạy từ đầu](SETUP.md).
 
 Ứng dụng local chuyển câu hỏi tiếng Việt/tiếng Anh thành SQL trên SQLite. Pipeline đọc schema, sinh SQL, kiểm tra, thực thi và chọn ứng viên dựa trên kết quả. Có giao diện Streamlit và CLI thực nghiệm.
@@ -10,7 +17,7 @@ Weights mặc định được lưu trong `models/SLM-SQL-1.5B` bên trong proje
 
 ## 1. Phạm vi và cơ sở nghiên cứu
 
-Project triển khai inference bằng model đã huấn luyện, không huấn luyện SFT/GRPO. Phương pháp thử nghiệm là lấy mẫu theo vòng `[4, 4, 8, 16]`, dừng khi có đủ ứng viên hợp lệ và đồng thuận, kết hợp kiểm tra schema và sửa SQL lỗi. Mục tiêu thực nghiệm là đo khả năng giảm số lần sinh và độ trễ so với lấy mẫu cố định, đồng thời theo dõi độ chính xác.
+Nhánh demo bên dưới triển khai inference bằng model đã huấn luyện, không huấn luyện SFT/GRPO. Nhánh nghiên cứu CSC LoRA mới được mô tả trong `docs/CSC_LORA.md`. Phương pháp thử nghiệm là lấy mẫu theo vòng `[4, 4, 8, 16]`, dừng khi có đủ ứng viên hợp lệ và đồng thuận, kết hợp kiểm tra schema và sửa SQL lỗi. Mục tiêu thực nghiệm là đo khả năng giảm số lần sinh và độ trễ so với lấy mẫu cố định, đồng thời theo dõi độ chính xác.
 
 Tham khảo [bài báo SLM-SQL, Findings IJCNLP-AACL 2025](https://aclanthology.org/2025.findings-ijcnlp.92.pdf), [repository tác giả](https://github.com/CycloneBoy/slm_sql) và [model card 0.5B](https://huggingface.co/cycloneboy/SLM-SQL-0.5B). Đã kiểm tra ngày 10/09/2026: repository chưa cung cấp pipeline inference hoàn chỉnh; model card cho biết model thuộc họ Qwen2.5-Coder. Tokenizer config dùng `Qwen2Tokenizer`, chat template ChatML, hỗ trợ `add_generation_prompt`.
 
@@ -183,7 +190,7 @@ python -m streamlit run app.py
 
 Linux CPU: dùng wheel CPU như Windows. macOS: `python -m pip install torch==2.6.0` rồi cài `requirements-model.txt`; bản demo chạy CPU, chưa có backend MPS.
 
-Kaggle cho pipeline nghiên cứu: xem [KAGGLE.md](KAGGLE.md) và chạy các notebook `00` → `05`. Mỗi notebook tự bootstrap repo/path để có thể chạy ở session độc lập; artifact giữa session nên lưu trong Kaggle Dataset hoặc Hugging Face. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa có GPU Kaggle trong phiên này nên chưa đo runtime thực tế.
+Kaggle cho pipeline nghiên cứu CSC LoRA: xem [KAGGLE.md](KAGGLE.md) và chạy các notebook `09` → `11`. Các notebook `00` → `08` là nhánh cũ/tùy chọn. Mỗi notebook tự bootstrap repo/path để có thể chạy ở session độc lập; artifact giữa session nên lưu trong Kaggle Dataset hoặc Hugging Face. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa có GPU Kaggle trong phiên này nên chưa đo runtime thực tế.
 
 ## 8. Dữ liệu: tự tạo gì, tải gì?
 

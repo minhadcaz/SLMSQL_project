@@ -1,0 +1,55 @@
+# Canonical research workflow: python -m research.slm_sql --help
+experiment_dir: results/csc_slm_sql
+data:
+  train_dir: data/bird/train       # contains train.json and train_databases/
+  evaluation_dir: data/bird       # contains dev.json and dev_databases/
+  validation_fraction: 0.2
+  seed: 42
+  train_limit: 1200               # 0 = all; applied AFTER splitting by database
+  validation_limit: 200
+  evaluation_limit: 0             # complete BIRD dev
+  schema_sample_rows: 3
+generation:
+  model: cycloneboy/SLM-SQL-1.5B
+  revision: main                 # first resolved commit is recorded and frozen per artifact
+  train_samples: 16
+  validation_samples: 16
+  evaluation_samples: 64
+  temperature: 0.8
+  top_p: 1.0
+  max_tokens: 1024
+  max_model_len: 8192
+  batch_size: 4
+  gpu_memory_utilization: 0.85
+  dtype: float16
+merger:
+  model: cycloneboy/CscSQL-Merge-Qwen2.5-Coder-1.5B-Instruct
+  revision: main
+  samples: 8
+  temperature: 0.8
+  top_p: 1.0
+  max_tokens: 1024
+  max_model_len: 8192
+  batch_size: 4
+  gpu_memory_utilization: 0.85
+  dtype: float16
+  result_preview_rows: 5
+execution:
+  timeout: 30
+  max_rows: 1000000
+training:
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  quantization: 4bit
+  learning_rate: 0.00005
+  epochs: 2
+  max_seq_len: 8192
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  warmup_ratio: 0.05
+  seed: 42
+  augment_swap: true
+evaluation:
+  bootstrap_samples: 2000

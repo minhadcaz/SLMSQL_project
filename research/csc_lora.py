@@ -19,6 +19,11 @@ def build_csc_training_data(
     output_path: str | Path,
 ) -> dict[str, int]:
     """Build CSC training data: pairs of top-2 candidate SQLs → gold SQL."""
+    if any(r.get("source_split") != "train" for r in exec_records):
+        raise ValueError(
+            "CSC training pairs must come from a declared training split; dev/evaluation labels "
+            "are forbidden. Use python -m research.slm_sql pairs for database-disjoint data."
+        )
     from research.exec_runner import _exec_one
     from core.schema_inspector import SchemaInspector
 
@@ -105,82 +110,12 @@ def train_csc_lora(
     epochs: int = 3,
     lr: float = 2e-4,
 ) -> dict[str, Any]:
-    """Train a CSC LoRA adapter from merge-correct data."""
-    from unsloth import FastLanguageModel
-    from trl import SFTTrainer, SFTConfig
-    from datasets import Dataset
-    import torch
-
-    pairs = []
-    with open(training_data_path, encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                pairs.append(json.loads(line))
-
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        base_adapter_path,
-        max_seq_length=max_seq_len,
-        dtype=torch.float16,
-        load_in_4bit=True,
+    """Legacy training entry point; use the provenance-checked author-merger workflow."""
+    raise RuntimeError(
+        "Legacy CSC training is disabled: it could train a generator adapter on dev gold SQL. "
+        "Use python -m research.slm_sql --config configs/csc_experiment.yaml train. "
+        "That command adapts the author's CSC checkpoint using declared train/validation pairs."
     )
-
-    # Use the tokenizer's chat template for both training and inference. This
-    # avoids depending on Qwen-specific special-token spelling in the dataset.
-    texts = []
-    for p in pairs:
-        prompt = format_csc_prompt(
-            p["question"], p.get("schema", ""), p["sql_a"], p["sql_b"]
-        )
-        messages = [
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": p["gold_sql"]},
-        ]
-        texts.append({
-            "text": tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=False,
-            )
-        })
-
-    dataset = Dataset.from_list(texts)
-
-    model = FastLanguageModel.get_peft_model(
-        model, r=lora_rank, lora_alpha=lora_rank,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
-        lora_dropout=0, bias="none", use_rslora=True,
-    )
-
-    output_path = Path(output_path)
-    config_kwargs = {
-        "output_dir": str(output_path),
-        "per_device_train_batch_size": 4,
-        "gradient_accumulation_steps": 4,
-        "num_train_epochs": epochs,
-        "learning_rate": lr,
-        "fp16": True,
-        "bf16": False,
-        "logging_steps": 50,
-        "save_strategy": "epoch",
-        "dataset_text_field": "text",
-    }
-    try:
-        config = SFTConfig(max_seq_length=max_seq_len, **config_kwargs)
-    except TypeError as exc:
-        if "max_seq_length" not in str(exc):
-            raise
-        config = SFTConfig(max_length=max_seq_len, **config_kwargs)
-
-    trainer_kwargs = {"model": model, "train_dataset": dataset, "args": config}
-    try:
-        trainer = SFTTrainer(tokenizer=tokenizer, **trainer_kwargs)
-    except TypeError as exc:
-        if "tokenizer" not in str(exc):
-            raise
-        trainer = SFTTrainer(processing_class=tokenizer, **trainer_kwargs)
-    trainer.train()
-    model.save_pretrained(str(output_path / "final"))
-    tokenizer.save_pretrained(str(output_path / "final"))
-
-    return {"n_pairs": len(pairs), "output": str(output_path / "final")}
 
 
 def run_csc_inference(

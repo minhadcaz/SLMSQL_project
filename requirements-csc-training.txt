@@ -1,0 +1,9 @@
+# Prefer a separate Kaggle CUDA session from vLLM inference.
+# No vLLM, Unsloth or RL trainer is needed to adapt the author's CSC checkpoint.
+PyYAML>=6.0,<7
+sqlglot==26.16.4
+torch>=2.5,<3
+transformers>=4.46,<5
+peft>=0.13,<1
+accelerate>=1,<2
+bitsandbytes>=0.45,<1

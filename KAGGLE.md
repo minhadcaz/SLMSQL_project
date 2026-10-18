@@ -1,92 +1,69 @@
-# Chạy thí nghiệm trên Kaggle
+# Quy trình Kaggle: cải tiến CSC của SLM-SQL bằng LoRA
 
-Các notebook được tách theo artifact, nhưng mỗi notebook đều tự tìm/clone repo và
-tự dựng lại biến đường dẫn. Vì vậy có thể chạy nối tiếp trong một session hoặc mở
-từng notebook ở session riêng.
+Luồng nghiên cứu chính hiện tại: **09 → 10 → 11**.
 
-## 1. Luồng khuyến nghị
+1. `09_slm_sql_baseline.ipynb`: đo baseline bằng generator **và** CSC của tác giả;
+   lưu các ứng viên evaluation, train và validation để tái sử dụng.
+2. `10_csc_lora.ipynb`: tạo cặp bất đồng JOIN/tổng hợp từ **train**, huấn luyện LoRA
+   trên checkpoint CSC đã SFT + GRPO; chọn checkpoint bằng validation.
+3. `11_csc_evaluation.ipynb`: dùng cùng evaluation candidates để so sánh CSC gốc
+   và CSC + LoRA. Không gọi generator lại.
 
-Chạy theo chuỗi sau để tránh sinh lại artifact đắt tiền:
+Không cần chạy notebook 02 Qwen baseline, 03 Qwen SFT, hoặc 04–08 adaptive/demo cũ.
+Không cần SynSQL và không huấn luyện lại RL. Notebook 00 cũ cài stack nghiên cứu
+rộng hơn cần thiết; ba notebook mới có bootstrap/profile riêng.
 
-1. `00_setup.ipynb`: cài dependency tối thiểu, clone repo, chuẩn bị **BIRD dev đầy đủ**.
-2. `01_data_prep.ipynb`: kiểm tra BIRD; nếu có file synthetic training thì lọc và tạo
-   `data/sft_subsets/sft_*.jsonl`.
-3. `02_baseline.ipynb`: greedy và SC@16 trên model nền.
-4. `03_lora_sft.ipynb`: LoRA SFT; mặc định chỉ chạy một cấu hình để phù hợp giới hạn
-   GPU, sau đó chọn cấu hình tốt và mới chạy rộng hơn.
-5. `04_candidates.ipynb`: sinh ứng viên một lần và lưu `results/candidates/`.
-6. `05_adaptive.ipynb`: replay các policy trên cùng ứng viên, không sinh lại model.
+Đọc **[hướng dẫn đầy đủ và CLI](docs/CSC_LORA.md)** trước khi chạy GPU.
+Để biết **từng notebook 00–11 lấy input từ đâu, tạo file gì, cách chuyển session
+và upload/restore LoRA CSC trên Hugging Face**, xem
+[hướng dẫn notebook 00–11](docs/NOTEBOOKS_00_11.md).
 
-Nếu chỉ muốn kiểm tra nhanh, đặt `BIRD_LIMIT=20` và `N_CANDIDATES=4`; khi chạy số liệu
-chính thức bỏ hai biến này (`BIRD_LIMIT=0`, `N_CANDIDATES=32`) để dùng toàn bộ dev.
+## Chuẩn bị
 
-## 2. Dữ liệu
+Đưa **source mới** lên Kaggle; clone remote chỉ dùng được sau khi remote đã có
+module `research/slm_sql`. Bật GPU và Internet để tải checkpoint khi cần.
+Attach BIRD **train** và **dev** để làm toàn bộ thí nghiệm. Nếu chỉ có dev, đặt
+`BUILD_CSC_TRAIN_CACHE=0` để notebook 09 dùng `prepare --evaluation-only` và đo
+baseline model gốc. Khi có train, đặt lại `BUILD_CSC_TRAIN_CACHE=1` rồi chạy lại
+09: code thêm train/validation và tái sử dụng evaluation cache, không sinh lại.
 
-`00_setup.ipynb` tìm dataset BIRD đã attach ở các thư mục phổ biến:
-
-- `/kaggle/input/bird-benchmark`
-- `/kaggle/input/bird-dev`
-- `/kaggle/input/bird-full-dev`
-
-Dataset phải có `dev.json` và `dev_databases/`. Nếu không có, notebook tải archive
-development vào `data/downloads/` bằng URL cấu hình `BIRD_DEV_URL`. Có thể bật lại tải
-đầu vào bằng `FORCE_REFRESH_DATA=1`; mặc định chỉ dùng thư mục hiện có sau khi đã kiểm
-tra từng database tham chiếu trong `dev.json`.
-
-SynSQL/Syn Think là **nguồn train tùy chọn**, không phải benchmark chính. Notebook không
-tự tải toàn bộ SynSQL vì có thể quá nặng và dễ làm đầy đĩa/session. Hãy attach một
-JSONL đã chọn hoặc đặt `SYNSQL_RAW=/kaggle/input/.../raw.jsonl`, rồi chạy notebook 01.
-Nếu không có file này, 01 sẽ bỏ qua SFT subset và 03 sẽ dừng với thông báo rõ ràng.
-
-## 3. Biến cấu hình hữu ích
-
-| Biến | Mặc định | Dùng cho |
-|---|---:|---|
-| `SLM_PRJ_REPO_URL` | repo hiện tại | đổi nguồn clone |
-| `BIRD_INPUT_DIR` | tự dò `/kaggle/input` | chỉ rõ dataset BIRD |
-| `BIRD_DEV_URL` | archive dev | đổi nguồn archive khi cần |
-| `BIRD_LIMIT` | `0` | giới hạn câu để pilot; `0` là full dev |
-| `INSTALL_VLLM` | `0` | đặt `1` trước 02/04 nếu Kaggle chưa có vLLM |
-| `SYNSQL_RAW` | không có | file train JSONL cho SFT |
-| `SFT_SIZES` | `10000,30000,50000` | kích thước subset |
-| `MAX_EXPERIMENTS` | `1` | số cấu hình LoRA chạy pilot |
-| `RUN_FULL_GRID` | `0` | đặt `1` để chạy toàn bộ grid |
-| `MODEL_PATH` | adapter merged mẫu | checkpoint dùng ở 04 |
-| `N_CANDIDATES` | `32` | số ứng viên/câu |
-| `GEN_BATCH_SIZE` | `8` | số câu đưa vào vLLM mỗi batch |
-| `N_PERMUTATIONS` | `100` | số hoán vị replay ở 05 |
-| `RUN_CSC_TRAINING` | `0` | bật CSC LoRA tốn GPU một cách chủ động |
-
-## 4. Checkpoint lên Hugging Face
-
-Trong Kaggle tạo hai Secrets, không viết token vào notebook:
-
-- `HF_TOKEN`: token có quyền ghi model repo.
-- `HF_REPO_ID`: ví dụ `your-account/slm-sql-bird-dev`.
-
-Cell cuối của notebook 03 gọi `HfApi.create_repo(..., private=True)` rồi upload thư mục
-`merged` (hoặc đường dẫn trong `CHECKPOINT_DIR`). Không có đủ hai secret thì cell chỉ
-in lý do bỏ qua, không upload gì. Giữa các session, checkpoint nằm trong Hugging Face
-repo hoặc Kaggle Dataset; `/kaggle/working` không nên được xem là nơi lưu lâu dài.
-
-Để lấy checkpoint trong session 04 mới, thêm cell trước bước sinh ứng viên:
+Đặt trong notebook trước bootstrap:
 
 ```python
-from scripts.kaggle_utils import load_kaggle_secrets, download_checkpoint
-load_kaggle_secrets()
-MODEL_PATH = download_checkpoint()
 import os
-os.environ["MODEL_PATH"] = str(MODEL_PATH)
+os.environ['CSC_TRAIN_DIR'] = '/kaggle/input/your-bird-train/train'
+os.environ['CSC_EVAL_DIR'] = '/kaggle/input/your-bird-dev/dev'
+os.environ['CSC_CONFIG'] = '/kaggle/working/SLM-PRJ/results/csc_run_config.json'
+os.environ['CSC_EXPERIMENT_DIR'] = '/kaggle/working/SLM-PRJ/results/csc_slm_sql_pilot'
+os.environ['CSC_PILOT'] = '1'
+os.environ['RUN_CSC_GPU'] = '1'
+os.environ['INSTALL_CSC_DEPS'] = '1'  # chỉ khi chưa có profile phù hợp
 ```
 
-Nếu không muốn dùng Hugging Face, attach Kaggle Dataset chứa checkpoint và gán
-`MODEL_PATH` sang đường dẫn mount của dataset. Notebook 05 cần file
-`results/candidates/exec_dev.jsonl` từ notebook 04; attach artifact tương tự và đặt
-`EXEC_FILE` khi chạy khác session.
+Train root chứa `train.json`, `train_databases/`; eval root chứa `dev.json`,
+`dev_databases/`. Điều chỉnh theo dataset đã attach. CPU preflight dừng rõ ràng nếu
+thiếu DB hoặc gold không compile được trước khi khởi tạo model.
 
-## 5. Syn Think / Syn Merge
+Mặc định pilot 80/30/20 câu, 4 generation samples và 2 merge samples. Pilot kiểm tra
+luồng; không dùng điểm đó thay full BIRD dev. Full protocol dùng config/experiment
+mới, đặt `CSC_PILOT=0` trước khi tạo config, 64 evaluation samples và 8 merge samples.
 
-Repo hiện không hardcode một repo ID CycloneBoy cho hai biến thể này. Lý do là nguồn và
-quyền truy cập có thể thay đổi, trong khi SFT không cần chúng để kiểm tra pipeline BIRD.
-Nếu muốn dùng, attach đúng file JSONL đã chọn rồi dùng `SYNSQL_RAW`; cần xác nhận riêng
-chỉ khi bạn muốn mình khóa một URL/repo cụ thể hoặc tự tải dữ liệu bên ngoài.
+## Tách môi trường và lưu artifacts
+
+09/11 dùng `requirements-csc-inference.txt`. 10 dùng `requirements-csc-training.txt`
+trong session riêng để tránh conflict vLLM–torch–transformers. Không cài tất cả các
+profile cùng lúc chỉ để chạy một stage.
+
+Preserve **toàn bộ experiment directory cùng JSON config**, không chỉ adapter.
+Restore ở cùng đường dẫn giữa session. Dùng Kaggle output/dataset hoặc phương thức
+lưu artifact của bạn; code không tự upload hay gửi dữ liệu ra ngoài.
+
+Mỗi stage ghi JSONL theo câu và sidecar manifest. Cache hoàn tất, đúng config/hash
+thì không load model lại. Ngắt giữa chừng thì resume; config/data không khớp thì
+báo lỗi thay vì tự tính lại tốn GPU. CSC được bỏ qua nếu chỉ có một nhóm executable.
+
+Không dùng gold dev để huấn luyện CSC. Legacy `RUN_CSC_TRAINING` trong notebook 05
+đã được thay bằng hướng dẫn tới 09–11; API training CSC cũ cũng bị chặn.
+Cell cuối 10 chỉ upload adapter lên Hugging Face **private** khi
+`PUBLISH_CSC_ADAPTER=1`; cell đầu 11 chỉ restore khi `RESTORE_CSC_ADAPTER=1`.
+Hub không thay thế việc lưu toàn bộ cache/config qua các session Kaggle.
