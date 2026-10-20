@@ -6,6 +6,7 @@ import importlib.metadata
 from pathlib import Path
 
 from research.slm_sql.artifacts import file_hash
+from research.generation_metrics import completion_logprob
 
 
 def model_identity(model: str, revision: str) -> dict:
@@ -90,6 +91,7 @@ class VLLMBackend:
                 top_p=self.settings["top_p"],
                 max_tokens=self.settings["max_tokens"],
                 seed=seed,
+                logprobs=1,
             )
             for seed in seeds
         ]
@@ -105,6 +107,7 @@ class VLLMBackend:
                     {
                         "raw_text": completion.text,
                         "n_tokens": len(completion.token_ids),
+                        "avg_logprob": completion_logprob(completion),
                         "finish_reason": completion.finish_reason,
                         "prompt_tokens": prompt_tokens,
                     }

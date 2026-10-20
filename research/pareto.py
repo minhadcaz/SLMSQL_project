@@ -1,6 +1,7 @@
 """Pareto analysis: aggregate experiment results, plot EX vs cost curves."""
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -20,20 +21,25 @@ def load_experiment_results(results_dir: str | Path) -> list[dict[str, Any]]:
 def build_pareto_table(experiments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build a table with EX, avg_samples, avg_tokens, avg_seconds per experiment."""
     rows = []
-    for exp in experiments:
+    for experiment in experiments:
+        if experiment.get("accuracy_basis") == "sc_proxy_when_csc_requested":
+            continue  # CSC has not been executed or costed in these replay results.
         rows.append({
-            "name": exp.get("name", exp.get("_file", "unknown")),
-            "ex": exp.get("ex_mean", exp.get("ex", 0.0)),
-            "avg_samples": exp.get("avg_samples", 0.0),
-            "avg_tokens": exp.get("avg_tokens", 0.0),
-            "avg_seconds": exp.get("avg_seconds", 0.0),
+            "name": experiment.get("name", experiment.get("_file", "unknown")),
+            "ex": experiment.get("ex_mean", experiment.get("ex")),
+            "avg_samples": experiment.get("avg_samples"),
+            "avg_tokens": experiment.get("avg_tokens"),
+            "avg_seconds": experiment.get("avg_seconds"),
+            "seconds_basis": experiment.get("seconds_basis", "unavailable"),
         })
     return rows
 
 
 def pareto_frontier(rows: list[dict[str, Any]], x_key: str = "avg_samples", y_key: str = "ex") -> list[dict[str, Any]]:
     """Extract Pareto-optimal points (maximize y, minimize x)."""
-    sorted_rows = sorted(rows, key=lambda r: r.get(x_key, 0.0))
+    valid = [r for r in rows if all(isinstance(r.get(key), (int, float)) and math.isfinite(r[key]) for key in (x_key, y_key))]
+    # Sort ties by descending accuracy; lower-accuracy equal-cost rows are dominated.
+    sorted_rows = sorted(valid, key=lambda r: (r[x_key], -r[y_key]))
     frontier = []
     best_y = -1.0
     for row in sorted_rows:
@@ -77,8 +83,9 @@ def plot_pareto(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    xs = [r.get(x_key, 0) for r in rows]
-    ys = [r.get(y_key, 0) for r in rows]
+    rows = [r for r in rows if all(isinstance(r.get(key), (int, float)) and math.isfinite(r[key]) for key in (x_key, y_key))]
+    xs = [r[x_key] for r in rows]
+    ys = [r[y_key] for r in rows]
     names = [r.get("name", "") for r in rows]
 
     frontier = pareto_frontier(rows, x_key, y_key)

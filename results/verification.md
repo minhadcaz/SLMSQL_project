@@ -16,3 +16,12 @@ Năm câu là kiểm tra tích hợp nhỏ, đã được xem trong quá trình 
 ## Chạy
 
 Mở `scripts/run_demo.bat`, truy cập http://127.0.0.1:8501, giữ backend huggingface và greedy, nhập câu hỏi rồi bấm Generate SQL. Lần đầu phải chờ nạp model; model được cache trong phiên Streamlit. Có thể chọn adaptive_sc để thử nhiều ứng viên nhưng sẽ chậm hơn. Model có thể sinh SQL chạy được nhưng sai ý nghĩa.
+
+## Audit phương pháp ngày 19/10/2026
+
+- Python kiểm thử: `/tmp/slm-sql-audit-py312/bin/python` (3.12).
+- `139 passed`; Ruff: `All checks passed`. Có 2 cảnh báo deprecation từ multiprocessing fork, không làm fail test.
+- Đã compile tất cả code cell trong 12 notebook `00`–`11`; không có SyntaxError.
+- Đã kiểm tra parser SynsQL-Think với record JSONL và hỗ trợ JSON-array public export; notebook 08 có guard không gộp hai report cùng variant/seed khác config.
+- Chưa chạy: generation/SFT/merge/EX thật trên full BIRD, profiling GPU T4, 3 seed final, Spider OOD, human error review và upload public.
+- Kết luận của audit này là cải thiện độ tin cậy phương pháp và khả năng tái lập; chưa phải bằng chứng cải thiện chất lượng SLM-SQL.

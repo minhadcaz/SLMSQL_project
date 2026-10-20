@@ -1,6 +1,6 @@
 """Format SFT samples as chat messages with <think>/<answer> tags.
 
-Wraps core.prompt_builder for the Qwen2.5-Coder chat template used by
+Uses the shared research prompt, a semantic reconstruction of
 SLM-SQL Appendix E: system prompt → user (schema + question) → assistant
 (<think>reasoning</think><answer>SQL</answer>).
 """
@@ -8,16 +8,13 @@ SLM-SQL Appendix E: system prompt → user (schema + question) → assistant
 import logging
 from typing import Any
 
-from core.prompt_builder import build_prompt
+from research.slm_sql.prompts import SYSTEM, generation_messages
 from core.sql_extractor import extract_sql
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_MESSAGE = (
-    "You are a helpful SQL assistant. Given a database schema and a natural "
-    "language question, generate a correct SQLite query. Wrap your reasoning "
-    "in <think>...</think> and your final SQL in <answer>...</answer>."
-)
+# Kept as an import-compatible alias for older notebook cells.
+SYSTEM_MESSAGE = SYSTEM
 
 
 def format_sft_messages(
@@ -32,20 +29,24 @@ def format_sft_messages(
     If *reasoning* is empty, the assistant turn contains only the answer tag
     (answer-only mode for CoT ablation).
     """
-    user_content = build_prompt(question, schema, evidence)
+    if not isinstance(schema, str):
+        import json
+        schema = json.dumps(schema, ensure_ascii=False)
+    messages = generation_messages({"question": question, "evidence": evidence}, schema)
     if reasoning:
         assistant_content = f"<think>{reasoning}</think>\n<answer>{gold_sql}</answer>"
     else:
         assistant_content = f"<answer>{gold_sql}</answer>"
-    return [
-        {"role": "system", "content": SYSTEM_MESSAGE},
-        {"role": "user", "content": user_content},
-        {"role": "assistant", "content": assistant_content},
-    ]
+    return messages + [{"role": "assistant", "content": assistant_content}]
 
 
 def validate_output(text: str) -> str | None:
     """Try to extract SQL from model output; return None on parse failure."""
+    import re
+    if not isinstance(text, str) or len(re.findall(r"<answer>", text, re.I)) != 1:
+        return None
+    if re.search(r"<answer>\s*.+?\s*</answer>", text, re.S | re.I) is None:
+        return None
     try:
         return extract_sql(text)
     except ValueError:

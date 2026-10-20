@@ -50,6 +50,12 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
     records, execution_manifest = load_execution(cfg, split, seed)
     n = cfg["generation"][f"{split}_samples"]
     k = n if k is None else k
+    if not records or not isinstance(k, int) or isinstance(k, bool) or not 1 <= k <= n:
+        raise ValueError("Scoring requires nonempty paired records and k within the cache.")
+    protocol_signature = None
+    if split == "evaluation" and not baseline_only:
+        from research.slm_sql.protocol import verify_freeze
+        protocol_signature = verify_freeze(cfg, seed, k)
     ids = [r["id"] for r in records]
     author_rows, author_manifest = _load_merge(
         cfg, split, seed, k, "author", execution_manifest, ids
@@ -121,12 +127,13 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
                 "correct": flags,
                 "predictions": predictions,
                 "top2_contains_gold": gold_fp in [g["fingerprint"] for g in groups[:2]],
+                "pass_at_k": gold_fp in [g["fingerprint"] for g in groups],
                 "generation_tokens": generation_tokens,
                 "generation_truncated": sum(
                     c["finish_reason"] == "length" for c in record["candidates"][:k]
                 ),
                 "generation_format_errors": sum(
-                    bool(c["parse_error"]) for c in record["candidates"][:k]
+                    bool(c.get("format_error", c["parse_error"])) for c in record["candidates"][:k]
                 ),
                 "costs": costs,
             }
@@ -141,12 +148,18 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
             "accuracy_ci95": bootstrap_mean_ci(flags, bootstrap, seed),
             "by_difficulty": {},
             "by_sql_feature": {},
+            "by_database": {},
         }
         for difficulty in sorted({r["difficulty"] for r in per_question}):
             subset = [r for r in per_question if r["difficulty"] == difficulty]
             metrics["by_difficulty"][difficulty] = {
                 "questions": len(subset),
                 "ex": sum(r["correct"][name] for r in subset) / len(subset),
+            }
+        for db_id in sorted({r["db_id"] for r in per_question}):
+            subset = [r for r in per_question if r["db_id"] == db_id]
+            metrics["by_database"][db_id] = {
+                "questions": len(subset), "ex": sum(r["correct"][name] for r in subset) / len(subset),
             }
         for feature in ("join", "aggregate"):
             subset = [r for r in per_question if r["features"][feature]]
@@ -157,6 +170,11 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
         if name != "sc":
             called = [r for r in per_question if r["costs"][name]["csc_called"]]
             metrics.update(
+                mean_generation_samples=k,
+                mean_csc_samples=sum(len(r["merge_candidates"]) for r in variants[name]) / len(flags),
+                mean_amortized_total_s=(sum(
+                    r["costs"][name]["amortized_generation_s"] + r["costs"][name]["amortized_merge_s"] for r in per_question
+                ) / len(flags)) if k == n else None,
                 csc_calls=len(called),
                 csc_subset_ex=sum(r["correct"][name] for r in called) / len(called)
                 if called
@@ -204,6 +222,11 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
         "k": k,
         "summary": summary,
         "comparison": comparison,
+        "final_protocol_signature": protocol_signature,
+        "oracle": {
+            "pass_at_k": sum(r["pass_at_k"] for r in per_question) / len(per_question),
+            "top2_coverage_at_k": sum(r["top2_contains_gold"] for r in per_question) / len(per_question),
+        },
         "generation_diagnostics": {
             "truncated": sum(r["generation_truncated"] for r in per_question),
             "format_errors": sum(r["generation_format_errors"] for r in per_question),

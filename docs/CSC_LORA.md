@@ -15,6 +15,12 @@ Không cần SynSQL, không SFT Qwen lại từ đầu, không chạy GRPO lại
   cũng vote theo kết quả thực thi. Tất cả merge outputs lỗi thì tính thất bại;
   không âm thầm dùng lại đáp án SC.
 
+Merger `cycloneboy/CscSQL-Merge-Qwen2.5-Coder-1.5B-Instruct` và các bộ
+`SynsQL-Think`/`SynsQL-Merge-Think` của tác giả được ghi nhận là
+**CC-BY-NC-4.0** trong `research/licenses.md`. Vì vậy adapter LoRA kế thừa ràng
+buộc của base model/dữ liệu; không upload public hoặc dùng thương mại trước khi
+kiểm tra đúng model revision, dataset provenance và điều khoản tương ứng.
+
 Tác giả liệt kê cả generator và merger là SFT + GRPO trong repository. Chọn
 revision/commit cụ thể trong config nếu đã biết. Với `main`, commit thực tế được
 resolve ở lần đầu tải model và ghi vào manifest; các lần resume dùng đúng commit

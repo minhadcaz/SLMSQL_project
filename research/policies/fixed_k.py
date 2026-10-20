@@ -1,7 +1,6 @@
 """Fixed-k stopping policy: always use exactly k candidates, then majority vote."""
 
 from collections import Counter
-from typing import Any
 
 
 class FixedKPolicy:

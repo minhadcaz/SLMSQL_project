@@ -84,8 +84,9 @@ hai nhanh doc lap:
 ### 01 - `01_data_prep.ipynb`
 
 - **Dau vao:** source va BIRD dev tu 00 (hoac attach dung layout), Spider dev
-  tuy chon; `SYNSQL_RAW` tro toi JSONL tu dataset SynSQL/Syn Think neu muon
-  huan luyen Qwen. Dung `SFT_SIZES`, `SFT_MAX_CHARS`, `SFT_SEED` de dieu chinh.
+  tuy chon; `SYNSQL_RAW` tro toi JSONL hoac JSON-array export tu dataset
+  SynSQL/SynsQL-Think neu muon huan luyen Qwen. Dung `SFT_SIZES`, `SFT_MAX_CHARS`,
+  `SFT_SEED` de dieu chinh.
 - **Chay:** load/kiem tra BIRD, optional Spider; thu gold-vs-gold 50 cau;
   neu khong co SynSQL thi bo qua phan tao subsets, khong co SFT dataset.
 - **Dau ra:** `data/sft_subsets/sft_<N>.jsonl` (neu co SynSQL), duoc 03 dung.
@@ -98,8 +99,9 @@ hai nhanh doc lap:
   `MAX_MODEL_LEN`, `MAX_OUTPUT_TOKENS`, `GEN_BATCH_SIZE` phu hop prompt dai.
 - **Chay:** greedy va SC@16 tren tap dev da chon. Kiem tra context **truoc**
   generation; neu thieu VRAM giam batch/increase budget hop le.
-- **Dau ra:** `results/baselines/E0_greedy.json`, `E1_sc16.json`. **Khong phai** author
-  SLM-SQL + CSC; diem nay khong duoc so truc tiep voi EX cong bo.
+- **Dau ra:** `results/baselines/<MODEL_KEY>/E0_greedy.json` va
+  `results/baselines/<MODEL_KEY>/E1_sc16.json`. **Khong phai** author SLM-SQL + CSC;
+  diem nay khong duoc so truc tiep voi EX cong bo.
 
 ### 03 - `03_lora_sft.ipynb`
 
@@ -119,8 +121,9 @@ hai nhanh doc lap:
   LoRA adapter rieng); neu bo trong thi doc
   `results/lora/best_checkpoint.json` hoac mac dinh merged path. Can BIRD dev.
   Neu thu muc merged khong co, legacy co the tai checkpoint tu `HF_REPO_ID`.
-- **Chay:** sinh `N_CANDIDATES` (mac dinh 32) tren `BIRD_LIMIT` cau
-  (0 = tat ca), execute SQL, in oracle/SC va calibration.
+- **Chay:** tao split DB-disjoint tu full BIRD dev truoc; `BIRD_LIMIT` chi lay pilot
+  phan tang va van bao phu ca calibration lan evaluation. Sinh `N_CANDIDATES`
+  (mac dinh 32), execute SQL, in oracle/SC va calibration.
 - **Dau ra:** `results/candidates/candidates_dev.jsonl`, sau do
   `results/candidates/exec_dev.jsonl`; 05 doc `exec_dev.jsonl`.
   Khong dung candidate file nay trong 09-11 (prompt/model/protocol khac).
@@ -150,8 +153,9 @@ hai nhanh doc lap:
 - **Dau vao:** `FINAL_MODEL_PATH` = thu muc full/merged model; `BIRD_DATA_DIR`
   chua `dev.json`, optional `SPIDER_DATA_DIR` chua `dev.json`/`test.json` + DB,
   optional `ROBUSTNESS_DATA_DIR`; business DB duoc tao tu source. GPU.
-- **Chay:** doi `RUN_EVAL = False` **trong cell** thanh `True`; 3 seed
-  42/43/44, fixed/adaptive. Neu thieu gold Spider split se skip co thong bao.
+- **Chay:** dat env `RUN_FINAL_EVAL=1` sau khi da kiem tra model/data; notebook
+  dong bang protocol, dataset digest, config va seed 42/43/44 truoc khi sinh ket qua,
+  sau do chay fixed/adaptive. Neu thieu gold Spider split se skip co thong bao.
 - **Dau ra:** `results/final/*.json` va pairwise/robustness/error sample.
   Khong dung LoRA CSC adapter `adapter/final` lam `FINAL_MODEL_PATH`.
 

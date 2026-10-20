@@ -1,49 +1,47 @@
-# Câu hỏi nghiên cứu và Giả thuyết — Task 0.2
+# Câu hỏi nghiên cứu và giả thuyết
 
 ## Câu hỏi nghiên cứu lõi
 
-### RQ1: Chính sách dừng sớm nào cho đường cong EX-số mẫu tốt nhất với SLM?
-- Tín hiệu thực thi (kích thước nhóm dẫn đầu, entropy, tỉ lệ lỗi/rỗng, logprob) có đủ không?
-- **Cách kiểm chứng**: Sinh N=32 ứng viên một lần, phát lại offline ≥100 hoán vị; so fixed-k, Beta-stopping, margin, entropy, stopper học.
+### RQ1: Chính sách dừng sớm nào cho đường cong EX–chi phí tốt nhất với SLM?
 
-### RQ2: Có thể ước lượng khả năng 'đáp án đúng nằm trong top-2' để chọn hành động (dừng / thêm mẫu / CSC) không?
-- **Cách kiểm chứng**: Đo top-2 coverage@k; huấn luyện bộ định tuyến 3 hành động; so với quy tắc gốc CSC-SQL ở cùng ngân sách.
+So sánh fixed-k, Beta, margin/entropy và learned stopper trên cùng candidate cache. Đánh giá theo đơn vị câu hỏi và database-disjoint calibration; không dùng gold trong feature lúc inference.
 
-### RQ3: LoRA với rank/module/lượng dữ liệu nào đạt gần SFT đầy đủ trên T4?
-- **Cách kiểm chứng**: Lưới nhỏ r∈{16,64}, attn-only vs all-linear, 10K/30K/50K mẫu; so với số liệu công bố.
+### RQ2: Có thể ước lượng khả năng đáp án đúng nằm trong top-2 để chọn dừng, lấy thêm mẫu hay gọi CSC không?
 
-## Câu hỏi nghiên cứu phụ
+Tách rõ `top2_correct` khỏi `sc_correct`. Router được fit trên calibration DB, còn EX của `CALL_CSC` phải đến từ merger chạy thật.
 
-### RQ4: Bỏ hoặc rút gọn CoT làm EX giảm bao nhiêu và tiết kiệm bao nhiêu token/thời gian?
-### RQ5: Lọc bằng thực thi, trọng số logprob, đa dạng hóa prompt có nâng EX ở cùng số mẫu không?
-### RQ6: Chính sách có giữ được lợi ích trên Spider, câu hỏi tiếng Việt và miền dữ liệu thực tiễn?
-### RQ7 (mở rộng): Độ đồng thuận có hiệu chuẩn tốt để 'từ chối khi không chắc' không?
+### RQ3: LoRA trên CSC merger của tác giả có cải thiện lựa chọn top-2 dưới cùng ngân sách không?
 
----
+So sánh author merger và LoRA merger với cùng generator cache, top-2, số merge samples, seed và scorer.
 
-## Giả thuyết
+## Câu hỏi phụ
 
-### H1 — Adaptive sampling giảm chi phí
-Với cùng EX, chính sách adaptive dùng ít mẫu trung bình hơn đáng kể so với fixed-k.
-- **Mục tiêu**: giảm ≥40% số mẫu ở EX không thấp hơn fixed-16 quá 0.5 điểm
-- **Tiêu chí thành công**: p < 0.05 (McNemar), bootstrap CI không chồng lấp
-- **Kịch bản kết quả âm**: pass@k thấp → dừng sớm không giúp; công bố phân tích top-2 coverage
+- RQ4: Bỏ hoặc rút gọn CoT làm EX, token và thời gian thay đổi thế nào?
+- RQ5: Lọc lỗi/rỗng, logprob, prompt diversity hay temperature adaptation có ích ở cùng ngân sách không?
+- RQ6: Chính sách có giữ lợi ích trên Spider, biến thể robustness, tiếng Việt và dữ liệu business không?
+- RQ7: Độ đồng thuận có thể dùng cho selective prediction/từ chối khi chưa chắc không?
 
-### H2 — Routing 3 hành động tốt hơn quy tắc cố định
-Quyết định 'lấy thêm mẫu' hay 'gọi CSC' theo độ đồng thuận tốt hơn quy tắc cố định 'chỉ gọi CSC khi phiếu không nhất quán'.
-- **Tiêu chí thành công**: EX cao hơn CSC-SQL gốc ở cùng ngân sách mẫu
-- **Kịch bản kết quả âm**: routing phức tạp hơn nhưng không đáng kể → công bố phân tích khi nào CSC giúp
+## Giả thuyết và tiêu chí
 
-### H3 — LoRA đủ tốt trên phần cứng yếu
-LoRA (r 16-64, all-linear) trên tập con 30-50K mẫu đạt ≥90% mức tăng EX của SFT đầy đủ so với mô hình gốc.
-- **Tiêu chí thành công**: (LoRA_EX - base_EX) / (published_SFT_EX - base_EX) ≥ 0.90
-- **Kịch bản kết quả âm**: LoRA chỉ đạt 70-80% → vẫn có giá trị thực nghiệm, nêu rõ trade-off
+### H1 — Adaptive sampling giảm chi phí với non-inferiority
 
----
+Ở cùng khoảng EX đã khai báo, adaptive dùng ít mẫu trung bình hơn fixed-16. Tiêu chí chính: chênh lệch EX `adaptive - fixed` có cận dưới của bootstrap CI không thấp hơn **−0.5 điểm phần trăm**, đồng thời giảm trung bình ít nhất 40% số mẫu; báo cáo thêm McNemar exact và paired CI. McNemar `p > 0.05` chỉ có nghĩa là chưa bác bỏ khác biệt, không phải bằng chứng hai chính sách tương đương.
 
-## Giả định lập kế hoạch
-- Thời lượng 16 tuần; 1 người làm
-- Mô hình: Qwen2.5-Coder-0.5B và 1.5B
-- N tối đa 32 ứng viên/câu
-- Đánh giá chính trên BIRD dev, OOD trên Spider
-- Kaggle GPU (T4 16GB hoặc P100 16GB)
+Kết quả âm vẫn công bố được bằng đường cong EX–sample–time và các nhóm câu mà Beta/learned stopper dừng sai.
+
+### H2 — Router ba hành động có lợi khi tính cả chi phí merge
+
+Router dừng/lấy thêm mẫu/gọi CSC chỉ được coi là tốt hơn nếu EX và tổng chi phí generation + merge được báo trên cùng bộ câu. So sánh với fixed SC và CSC gốc; không dùng `sc_proxy_when_csc_requested` làm EX.
+
+Kết quả âm vẫn có giá trị nếu cho thấy top-2 coverage không đủ để dự báo khi merger sửa đúng hoặc chi phí merge xóa lợi ích.
+
+### H3 — LoRA đạt phần lớn lợi ích của một baseline SFT được ghép cặp
+
+Tỷ lệ `(LoRA - base) / (matched SFT - base)` chỉ được tính khi base, prompt, dữ liệu, seed và scorer phù hợp. Mốc **1.5B SLM-SQL 64.84%** là SFT+RL+CSC ở một cấu hình bài báo, không được dùng làm denominator cho `LoRA SFT` đơn thuần. Nếu không có matched full-SFT reference, chỉ báo cáo delta LoRA-vs-author-merger và không gán nhãn H3 đã kiểm chứng.
+
+Kết quả âm 70–80% vẫn là kết quả trade-off về thời gian, VRAM, adapter size và EX.
+
+## Quy ước báo cáo
+
+- `BIRD dev` của 09–11 là evaluation chính; train/validation BIRD chỉ phục vụ cache/pair/adaptation. Nhánh 00–08 dùng held-out dev theo database khi calibration, nên không gọi đó là full-dev paper score.
+- Không dùng output GPU chưa chạy để điền số. Mọi kết quả phải có model revision, prompt version, seed, k, scorer, source hash và runtime.

@@ -17,7 +17,8 @@ def weighted_vote(candidates: list[dict[str, Any]], weight_key: str = "avg_logpr
         fp = c.get("fingerprint")
         if not fp:
             continue
-        w = math.exp(c.get(weight_key, 0.0))
+        value = c.get(weight_key)
+        w = math.exp(value) if value is not None else 1.0
         scores[fp] = scores.get(fp, 0.0) + w
     if not scores:
         return None
@@ -103,10 +104,10 @@ def run_ablation(
             gold_sql = record.get("gold_sql", "")
             if not gold_sql:
                 continue
-            gold_result = _exec_one(gold_sql, str(db_path_fn(record["db_id"])))
+            gold_result = record.get("gold_execution") or _exec_one(gold_sql, str(db_path_fn(record["db_id"])))
             gold_fp = gold_result["fingerprint"]
             if gold_fp is None:
-                continue
+                raise ValueError(f"Gold execution failed for {record['db_id']}")
 
             selected = ablation_vote(record["candidates"], **cfg)
             if selected == gold_fp:

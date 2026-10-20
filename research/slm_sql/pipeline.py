@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from core.sql_extractor import extract_sql
+from research.generation_metrics import has_answer_format
 from research.slm_sql import PROTOCOL_VERSION
 from research.slm_sql.artifacts import (
     Journal,
@@ -23,9 +24,29 @@ from research.slm_sql.execution import EXECUTION_VERSION, ExecutionCache
 from research.slm_sql.prompts import PROMPT_VERSION, generation_messages, merge_messages, top_groups
 
 
-def _sampling(cfg, split):
+def _sampling(cfg, split, mode="stochastic"):
     settings = {k: v for k, v in cfg["generation"].items() if not k.endswith("_samples")}
-    return {**settings, "samples": cfg["generation"][f"{split}_samples"]}
+    if mode == "stochastic":
+        return {**settings, "samples": cfg["generation"][f"{split}_samples"]}
+    if mode == "greedy":
+        return {**settings, "samples": 1, "temperature": 0.0, "top_p": 1.0}
+    raise ValueError("mode must be stochastic or greedy.")
+
+
+def _generation_stage(mode: str) -> str:
+    if mode == "stochastic":
+        return "generation"
+    if mode == "greedy":
+        return "greedy.generation"
+    raise ValueError("mode must be stochastic or greedy.")
+
+
+def _execution_stage(mode: str) -> str:
+    if mode == "stochastic":
+        return "execution"
+    if mode == "greedy":
+        return "greedy.execution"
+    raise ValueError("mode must be stochastic or greedy.")
 
 
 def _seed(seed: int, record_id: str, role: str) -> int:
@@ -63,40 +84,49 @@ def _bound_backend(
             raise ValueError("Backend loaded different model weights from the frozen identity.")
         if binding is None:
             atomic_json(path, {"requested": requested, "identity": backend.identity})
+        from research.reproducibility import capture_runtime
+        runtime_path = Path(cfg["experiment_dir"]) / f"runtime.{role}.json"
+        if not runtime_path.exists():
+            capture_runtime(cfg["experiment_dir"], role)
         return backend
 
 
-def _generation_spec(cfg, split, seed, data_manifest):
+def _generation_spec(cfg, split, seed, data_manifest, mode="stochastic"):
     return {
         "protocol": PROTOCOL_VERSION,
         "prompt": PROMPT_VERSION,
         "stage": "generation",
+        "mode": mode,
         "split": split,
         "seed": seed,
         "data": data_manifest["splits"][split]["sha256"],
         "prepared": data_manifest["splits"][split]["contract"],
-        "sampling": _sampling(cfg, split),
+        "sampling": _sampling(cfg, split, mode),
         "implementation": {
             name: file_hash(Path(__file__).with_name(name)) for name in ("backend.py", "prompts.py")
         },
     }
 
 
-def load_generation(cfg, split, seed):
+def load_generation(cfg, split, seed, *, mode="stochastic"):
     rows, data_manifest = load_split(cfg, split)
-    generated, manifest = completed_artifact(artifact_path(cfg, split, "generation", seed))
-    if manifest["signature"] != digest(_generation_spec(cfg, split, seed, data_manifest)):
+    generated, manifest = completed_artifact(
+        artifact_path(cfg, split, _generation_stage(mode), seed)
+    )
+    if manifest["signature"] != digest(_generation_spec(cfg, split, seed, data_manifest, mode)):
         raise ValueError("Generation cache no longer matches the requested protocol/configuration.")
     if [r["id"] for r in generated] != [r["id"] for r in rows]:
         raise ValueError("Generation question IDs do not match the prepared split.")
     return generated, manifest
 
 
-def generate_stage(cfg: dict, split: str, seed: int = 42, *, backend_factory=VLLMBackend) -> dict:
+def generate_stage(
+    cfg: dict, split: str, seed: int = 42, *, mode="stochastic", backend_factory=VLLMBackend
+) -> dict:
     records, data_manifest = load_split(cfg, split)
-    settings = _sampling(cfg, split)
-    path = artifact_path(cfg, split, "generation", seed)
-    spec = _generation_spec(cfg, split, seed, data_manifest)
+    settings = _sampling(cfg, split, mode)
+    path = artifact_path(cfg, split, _generation_stage(mode), seed)
+    spec = _generation_spec(cfg, split, seed, data_manifest, mode)
     with Journal(path, spec, [r["id"] for r in records]) as journal:
         if journal.complete:
             return {"path": str(path), "questions": len(records), "reused": True}
@@ -133,7 +163,9 @@ def generate_stage(cfg: dict, split: str, seed: int = 42, *, backend_factory=VLL
                     except ValueError as exc:
                         sql, parse_error = "", str(exc)
                     candidates.append(
-                        {**completion, "index": i, "sql": sql, "parse_error": parse_error}
+                        {**completion, "index": i, "sql": sql, "parse_error": parse_error,
+                         "format_error": not has_answer_format(completion["raw_text"]),
+                         "seed": _seed(seed, record["id"], f"{mode}-generation")}
                     )
                 journal.append(
                     {
@@ -146,9 +178,10 @@ def generate_stage(cfg: dict, split: str, seed: int = 42, *, backend_factory=VLL
     return {"path": str(path), "questions": len(records), "reused": False}
 
 
-def _execution_spec(cfg, split, seed, generation_manifest):
+def _execution_spec(cfg, split, seed, generation_manifest, mode="stochastic"):
     return {
         "stage": "execution",
+        "mode": mode,
         "split": split,
         "seed": seed,
         "generation": generation_manifest["sha256"],
@@ -159,18 +192,20 @@ def _execution_spec(cfg, split, seed, generation_manifest):
     }
 
 
-def load_execution(cfg, split, seed):
-    _, generation_manifest = load_generation(cfg, split, seed)
-    records, manifest = completed_artifact(artifact_path(cfg, split, "execution", seed))
-    if manifest["signature"] != digest(_execution_spec(cfg, split, seed, generation_manifest)):
+def load_execution(cfg, split, seed, *, mode="stochastic"):
+    _, generation_manifest = load_generation(cfg, split, seed, mode=mode)
+    records, manifest = completed_artifact(
+        artifact_path(cfg, split, _execution_stage(mode), seed)
+    )
+    if manifest["signature"] != digest(_execution_spec(cfg, split, seed, generation_manifest, mode)):
         raise ValueError("Execution cache no longer matches the requested generation/scorer.")
     return records, manifest
 
 
-def execute_stage(cfg: dict, split: str, seed: int = 42) -> dict:
-    generated, generation_manifest = load_generation(cfg, split, seed)
-    path = artifact_path(cfg, split, "execution", seed)
-    spec = _execution_spec(cfg, split, seed, generation_manifest)
+def execute_stage(cfg: dict, split: str, seed: int = 42, *, mode="stochastic") -> dict:
+    generated, generation_manifest = load_generation(cfg, split, seed, mode=mode)
+    path = artifact_path(cfg, split, _execution_stage(mode), seed)
+    spec = _execution_spec(cfg, split, seed, generation_manifest, mode)
     with Journal(path, spec, [r["id"] for r in generated]) as journal:
         if journal.complete:
             return {"path": str(path), "questions": len(generated), "reused": True}
@@ -192,6 +227,154 @@ def execute_stage(cfg: dict, split: str, seed: int = 42) -> dict:
     return {"path": str(path), "questions": len(generated), "reused": False}
 
 
+def _adaptive_policy(cfg):
+    settings = cfg["adaptive"]
+    if settings["policy"] == "beta":
+        from research.policies.beta_stopping import BetaStoppingPolicy
+
+        return BetaStoppingPolicy(
+            threshold=settings["threshold"],
+            min_k=settings["min_k"],
+            max_k=settings["max_k"],
+        )
+    if settings["policy"] == "margin":
+        from research.policies.margin_entropy import MarginEntropyPolicy
+
+        return MarginEntropyPolicy(min_k=settings["min_k"], max_k=settings["max_k"])
+    raise ValueError(
+        "The 09-11 adaptive stage supports STOP/SAMPLE_MORE policies only; "
+        "CALL_CSC requires a separate online merger stage."
+    )
+
+
+def _adaptive_spec(cfg, split, seed, data_manifest):
+    return {
+        "protocol": PROTOCOL_VERSION,
+        "prompt": PROMPT_VERSION,
+        "stage": "adaptive",
+        "split": split,
+        "seed": seed,
+        "data": data_manifest["splits"][split]["sha256"],
+        "prepared": data_manifest["splits"][split]["contract"],
+        "sampling": _sampling(cfg, split, "stochastic"),
+        "adaptive": cfg["adaptive"],
+        "implementation": {
+            "pipeline.py": file_hash(Path(__file__)),
+            "prompts.py": file_hash(Path(__file__).with_name("prompts.py")),
+        },
+    }
+
+
+def load_adaptive(cfg, split, seed):
+    _, data_manifest = load_split(cfg, split)
+    records, manifest = completed_artifact(artifact_path(cfg, split, "adaptive", seed))
+    if manifest["signature"] != digest(_adaptive_spec(cfg, split, seed, data_manifest)):
+        raise ValueError("Adaptive cache no longer matches the requested protocol/configuration.")
+    return records, manifest
+
+
+def adaptive_stage(
+    cfg: dict,
+    split: str = "evaluation",
+    seed: int = 42,
+    *,
+    backend_factory=VLLMBackend,
+) -> dict:
+    """Generate in execution-aware rounds and stop when consensus is stable."""
+    if not cfg["adaptive"]["enabled"]:
+        return {"path": str(artifact_path(cfg, split, "adaptive", seed)), "disabled": True}
+    records, data_manifest = load_split(cfg, split)
+    settings = _sampling(cfg, split, "stochastic")
+    policy = _adaptive_policy(cfg)
+    path = artifact_path(cfg, split, "adaptive", seed)
+    spec = _adaptive_spec(cfg, split, seed, data_manifest)
+    with Journal(path, spec, [r["id"] for r in records]) as journal:
+        if journal.complete:
+            return {"path": str(path), "questions": len(records), "reused": True}
+        backend = None
+        with ExecutionCache(
+            Path(cfg["experiment_dir"]) / "execution_cache.sqlite",
+            cfg["execution"],
+            cfg["merger"]["result_preview_rows"],
+        ) as cache:
+            for record in records[len(journal.records) :]:
+                gold = cache.run(record["gold_sql"], record)
+                if gold["error"]:
+                    raise ValueError(f"Gold execution failed for {record['id']}: {gold['error']}")
+                schema = get_schema(cfg, record["db_id"])
+                messages = [generation_messages(record, schema)]
+                seen = []
+                generation_seconds = 0.0
+                action = "SAMPLE_MORE"
+                while len(seen) < cfg["adaptive"]["max_k"]:
+                    count = min(
+                        cfg["adaptive"]["batch_size"],
+                        cfg["adaptive"]["max_k"] - len(seen),
+                    )
+                    if backend is None:
+                        backend = _bound_backend(
+                            cfg,
+                            "generator",
+                            settings,
+                            backend_factory,
+                            frozen=journal.manifest.get("model_identity"),
+                            expected_packages=journal.manifest.get("packages"),
+                        )
+                        journal.manifest.update(
+                            model_identity=backend.identity, packages=backend.versions
+                        )
+                        atomic_json(journal.manifest_path, journal.manifest)
+                    started = time.perf_counter()
+                    round_seed = _seed(seed, record["id"], f"adaptive-{len(seen)}")
+                    outputs = backend.generate(messages, n=count, seeds=[round_seed])
+                    elapsed = time.perf_counter() - started
+                    generation_seconds += elapsed
+                    if len(outputs) != 1 or len(outputs[0]) != count:
+                        raise RuntimeError("Backend returned incomplete adaptive generation requests.")
+                    for completion in outputs[0]:
+                        try:
+                            sql = extract_sql(completion["raw_text"])
+                            parse_error = None
+                        except ValueError as exc:
+                            sql, parse_error = "", str(exc)
+                        execution = cache.run(sql, record)
+                        seen.append(
+                            {
+                                **completion,
+                                "index": len(seen),
+                                "sql": sql,
+                                "parse_error": parse_error,
+                                "format_error": not has_answer_format(completion["raw_text"]),
+                                "seed": round_seed,
+                                "execution": execution,
+                            }
+                        )
+                    stop, action = policy.should_stop(seen, len(seen))
+                    if stop:
+                        break
+                if len(seen) >= cfg["adaptive"]["max_k"] and action == "SAMPLE_MORE":
+                    action = "STOP"
+                selected_fp = policy.select(seen)
+                selected = next((c for c in seen if c.get("fingerprint") == selected_fp), None)
+                cache.commit()
+                journal.append(
+                    {
+                        **record,
+                        "candidates": seen,
+                        "gold_execution": gold,
+                        "adaptive_policy": cfg["adaptive"]["policy"],
+                        "adaptive_action": action,
+                        "n_samples_used": len(seen),
+                        "selected_fp": selected_fp,
+                        "selected_sql": selected["sql"] if selected else "",
+                        "correct": bool(selected_fp and selected_fp == gold["fingerprint"]),
+                        "amortized_generation_s": generation_seconds,
+                    }
+                )
+        journal.finish()
+    return {"path": str(path), "questions": len(records), "reused": False}
+
+
 def merge_stage(
     cfg: dict, split="evaluation", seed=42, *, variant="author", k=None, backend_factory=VLLMBackend
 ) -> dict:
@@ -202,6 +385,9 @@ def merge_stage(
     k = n if k is None else k
     if not isinstance(k, int) or not 1 <= k <= n:
         raise ValueError(f"k must be between 1 and the cached sample count {n}.")
+    if split == "evaluation" and variant == "lora":
+        from research.slm_sql.protocol import verify_freeze
+        verify_freeze(cfg, seed, k)
     settings = cfg["merger"]
     adapter, adapter_identity, frozen_base, baseline_packages = None, None, None, None
     if variant == "lora":

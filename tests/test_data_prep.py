@@ -1,8 +1,6 @@
 """Tests for training.data_prep — SynSQL filtering and stratified sampling."""
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 

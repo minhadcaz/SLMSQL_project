@@ -1,13 +1,11 @@
 """Beta stopping (Adaptive-Consistency, Aggarwal 2023).
 
-Models the posterior probability that the majority answer is correct using
-a Beta distribution over execution-fingerprint agreement. Stops when
-P(correct) >= threshold or budget exhausted.
+Uses the exact top-two Beta posterior from Aggarwal et al. (2023).
+This estimates stability of the leading group, not semantic correctness.
 """
 
 import math
 from collections import Counter
-from typing import Any
 
 
 class BetaStoppingPolicy:
@@ -21,21 +19,13 @@ class BetaStoppingPolicy:
         if len(fps) < 2:
             return 0.0
         vote = Counter(fps)
-        leader_count = vote.most_common(1)[0][1]
-        n = len(fps)
-        alpha = leader_count + 1
-        beta = n - leader_count + 1
-        # P(p > 0.5) via Beta CDF complement — use regularized incomplete beta approx
-        # For tractability, use the normal approximation to the Beta
-        mean = alpha / (alpha + beta)
-        var = (alpha * beta) / ((alpha + beta) ** 2 * (alpha + beta + 1))
-        if var <= 0:
-            return 1.0 if mean > 0.5 else 0.0
-        std = math.sqrt(var)
-        z = (mean - 0.5) / std
-        # Approximate Phi(z) via logistic function
-        confidence = 1.0 / (1.0 + math.exp(-1.7 * z))
-        return confidence
+        counts = [count for _, count in vote.most_common(2)]
+        leader, runner_up = counts[0], counts[1] if len(counts) > 1 else 0
+        # For integer a,b, 1-I_0.5(a,b) is a binomial CDF. This is exact
+        # without scipy, including unanimous samples and ties.
+        a, b = leader + 1, runner_up + 1
+        trials = a + b - 1
+        return sum(math.comb(trials, j) for j in range(a)) / 2**trials
 
     def should_stop(self, candidates_so_far: list[dict], step: int) -> tuple[bool, str]:
         if step < self.min_k:

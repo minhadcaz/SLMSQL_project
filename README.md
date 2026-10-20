@@ -9,6 +9,8 @@
 
 **Mới clone repo?** Xem [SETUP.md — cài đặt, tải model và chạy từ đầu](SETUP.md).
 
+Audit triển khai ngày **19/10/2026** đã chạy **139 test CPU pass** và Ruff sạch. Đây là bằng chứng cho pipeline, evaluator, cache và các hợp đồng chống leakage; chưa có GPU runtime usable hoặc full BIRD trong phiên audit, nên chưa thể kết luận LoRA làm tăng EX trên BIRD.
+
 Ứng dụng local chuyển câu hỏi tiếng Việt/tiếng Anh thành SQL trên SQLite. Pipeline đọc schema, sinh SQL, kiểm tra, thực thi và chọn ứng viên dựa trên kết quả. Có giao diện Streamlit và CLI thực nghiệm.
 
 **Chạy nhanh trên máy hiện tại:** mở `scripts/run_demo.bat`. Môi trường `.venv` đã được tạo trong project. Mặc định dùng **huggingface**, model **SLM-SQL-1.5B**, thiết bị **auto** (ưu tiên GPU) và phương pháp **greedy**. Nhập câu hỏi tiếng Việt/tiếng Anh → **Generate SQL**, hoặc chọn câu hỏi mẫu → **Dùng câu hỏi mẫu** → **Generate SQL**. Lần đầu bấm sẽ tải model vào bộ nhớ; các câu sau dùng lại model. Có thể chuyển sang `adaptive_sc` để thử nhiều ứng viên, thời gian chạy sẽ tăng.
@@ -342,6 +344,6 @@ Tiếp theo có thể chạy một tập con nhỏ để pilot, dùng nhiều se
 
 - Lei Sheng, Shuai-Shuai Xu (2025), *SLM-SQL: An Exploration of Small Language Models for Text-to-SQL*, Findings of IJCNLP-AACL. [Paper](https://aclanthology.org/2025.findings-ijcnlp.92.pdf).
 - [Repository tác giả](https://github.com/CycloneBoy/slm_sql) công bố license Apache-2.0; source project này được triển khai riêng.
-- [Model card 0.5B](https://huggingface.co/cycloneboy/SLM-SQL-0.5B) ghi **CC-BY-NC-4.0**. License repository không thay thế license weights; kiểm tra model card của từng model khi đổi ID.
+- [Model card 0.5B](https://huggingface.co/cycloneboy/SLM-SQL-0.5B) ghi **CC-BY-NC-4.0**. Merger `cycloneboy/CscSQL-Merge-Qwen2.5-Coder-1.5B-Instruct` và các dataset SynsQL-Think/SynsQL-Merge-Think cũng cần được kiểm tra theo đúng revision; license repository không thay thế license weights/dataset. Xem [research/licenses.md](research/licenses.md).
 - Dữ liệu sinh viên và 200 câu hỏi được tự tạo cho project, không lấy thông tin sinh viên thật hoặc sao chép benchmark. Chưa gán license phát hành riêng cho source/dataset tự tạo.
 - Khi dùng BIRD/Spider, giữ provenance và tuân thủ điều khoản từ nguồn tải. Benchmark ngoài không được đóng gói trong project này.

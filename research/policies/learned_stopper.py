@@ -4,8 +4,6 @@ Trained on calibration data (research/calibration.py output), predicts
 P(SC@k correct) from features at each step. Stops when confidence >= threshold.
 """
 
-import json
-import math
 import pickle
 from collections import Counter
 from pathlib import Path
@@ -30,7 +28,7 @@ class LearnedStopperPolicy:
         self._model = None
         self._feature_names = [
             "leader_ratio", "n_groups", "entropy",
-            "error_ratio", "empty_ratio", "mean_logprob", "mean_sql_length",
+            "error_ratio", "empty_ratio", "mean_logprob", "mean_sql_length", "schema_size",
         ]
         if model_path:
             self.load(model_path)
@@ -44,20 +42,30 @@ class LearnedStopperPolicy:
         with open(path, "wb") as f:
             pickle.dump(self._model, f)
 
-    def train(self, calibration_data: list[dict[str, Any]]) -> dict[str, float]:
+    def train(self, calibration_data: list[dict[str, Any]], *, target="sc_correct") -> dict[str, Any]:
         """Train the stopper model on calibration data."""
         X = [[row.get(f, 0.0) for f in self._feature_names] for row in calibration_data]
-        y = [int(row["sc_correct"]) for row in calibration_data]
+        y = [int(row[target]) for row in calibration_data]
 
-        if self.model_type == "logistic":
+        if not y:
+            raise ValueError("No calibration rows available for stopper training.")
+        if len(set(y)) == 1:
+            from sklearn.dummy import DummyClassifier
+            self._model = DummyClassifier(strategy="constant", constant=y[0])
+            self._model.fit(X, y)
+        elif self.model_type == "logistic":
             from sklearn.linear_model import LogisticRegression
-            self._model = LogisticRegression(max_iter=1000, random_state=42)
+            from sklearn.pipeline import make_pipeline
+            from sklearn.preprocessing import StandardScaler
+            self._model = make_pipeline(
+                StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
+            )
             self._model.fit(X, y)
         elif self.model_type == "xgboost":
             from xgboost import XGBClassifier
             self._model = XGBClassifier(
                 n_estimators=100, max_depth=4, learning_rate=0.1,
-                random_state=42, use_label_encoder=False, eval_metric="logloss",
+                random_state=42, eval_metric="logloss",
             )
             self._model.fit(X, y)
         else:
@@ -65,7 +73,7 @@ class LearnedStopperPolicy:
 
         preds = self._model.predict(X)
         acc = sum(p == t for p, t in zip(preds, y)) / len(y) if y else 0.0
-        return {"train_accuracy": round(acc, 4), "n_samples": len(y)}
+        return {"train_accuracy": round(acc, 4), "n_samples": len(y), "target": target}
 
     def _predict_proba(self, candidates: list[dict]) -> float:
         if self._model is None:
@@ -73,7 +81,8 @@ class LearnedStopperPolicy:
         features = compute_features(candidates)
         x = [[features.get(f, 0.0) for f in self._feature_names]]
         proba = self._model.predict_proba(x)[0]
-        return float(proba[1]) if len(proba) > 1 else float(proba[0])
+        classes = list(self._model.classes_)
+        return float(proba[classes.index(1)]) if 1 in classes else 0.0
 
     def should_stop(self, candidates_so_far: list[dict], step: int) -> tuple[bool, str]:
         if step < self.min_k:

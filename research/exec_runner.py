@@ -4,55 +4,32 @@ import argparse
 import json
 import logging
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import closing
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from core.result_normalizer import fingerprint, requires_order
-from core.schema_inspector import open_readonly
 
 logger = logging.getLogger(__name__)
 
 
 def _exec_one(sql: str, db_path: str, timeout: int = 30) -> dict[str, Any]:
-    """Execute a single SQL and return fingerprint + metadata."""
-    import sqlite3
-    import time as _time
+    """Use the same complete-result, timeout-bounded BIRD scorer as 09–11."""
+    from research.slm_sql.execution import EXECUTION_VERSION, execute
 
-    result: dict[str, Any] = {
+    result = execute(sql, db_path, timeout=timeout, preview_rows=0)
+    return {
         "sql": sql,
-        "fingerprint": None,
-        "error": None,
-        "is_empty": False,
-        "elapsed_ms": 0.0,
+        "fingerprint": result["fingerprint"],
+        "error": result["error"],
+        "is_empty": result["error"] is None and result["row_count"] == 0,
+        "row_count": result["row_count"],
+        "elapsed_ms": round(result["elapsed_s"] * 1000, 2),
+        "execution_protocol": EXECUTION_VERSION,
     }
 
-    if not sql or not sql.strip():
-        result["error"] = "empty_sql"
-        return result
 
-    start = _time.perf_counter()
-    try:
-        with closing(open_readonly(db_path)) as conn:
-            deadline = _time.monotonic() + timeout
-            conn.set_progress_handler(lambda: int(_time.monotonic() >= deadline), 1000)
-            with closing(conn.execute(sql)) as cursor:
-                if cursor.description is None:
-                    result["error"] = "no_result_set"
-                    return result
-                rows = cursor.fetchall()
-                col_count = len(cursor.description)
-
-        ordered = requires_order(sql)
-        result["fingerprint"] = fingerprint(rows, col_count, ordered)
-        result["is_empty"] = len(rows) == 0
-    except Exception as e:
-        result["error"] = type(e).__name__
-    finally:
-        result["elapsed_ms"] = round((_time.perf_counter() - start) * 1000, 2)
-
-    return result
+def _exec_job(job):
+    return _exec_one(*job)
 
 
 def execute_candidates(
@@ -65,51 +42,51 @@ def execute_candidates(
     """Execute all candidates and save results as JSONL."""
     from research.candidate_generator import load_candidates
 
+    if timeout < 1 or max_workers < 1:
+        raise ValueError("timeout and max_workers must be positive.")
+    from contextlib import nullcontext
+    from research.slm_sql.artifacts import Journal, digest, file_hash
+    from research.slm_sql.execution import EXECUTION_VERSION
+
     records = load_candidates(candidates_path)
     output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    total_candidates = 0
-    total_errors = 0
-    total_empty = 0
-    start = time.perf_counter()
-
-    with output_path.open("w", encoding="utf-8") as out_f:
-        for record in records:
-            db_path = str(db_path_fn(record["db_id"]))
-            exec_results = []
-            for cand in record["candidates"]:
-                er = _exec_one(cand["sql"], db_path, timeout)
-                exec_results.append(er)
-                total_candidates += 1
-                if er["error"]:
-                    total_errors += 1
-                if er["is_empty"]:
-                    total_empty += 1
-
-            out_record = {
-                "question": record["question"],
-                "db_id": record["db_id"],
-                "schema": record.get("schema", {}),
-                "gold_sql": record.get("gold_sql", ""),
-                "difficulty": record.get("difficulty", "unknown"),
-                "candidates": [
-                    {**cand, **er}
-                    for cand, er in zip(record["candidates"], exec_results)
-                ],
-            }
-            out_f.write(json.dumps(out_record, ensure_ascii=False) + "\n")
-
-    elapsed = time.perf_counter() - start
-    stats = {
-        "total_questions": len(records),
-        "total_candidates": total_candidates,
-        "total_errors": total_errors,
-        "total_empty": total_empty,
-        "elapsed_s": round(elapsed, 1),
+    database_paths = {r["db_id"]: str(db_path_fn(r["db_id"])) for r in records}
+    spec = {
+        "version": 2, "execution": EXECUTION_VERSION, "timeout": timeout,
+        "source_sha256": file_hash(candidates_path),
+        "databases": {db: file_hash(path) for db, path in database_paths.items()},
     }
-    logger.info("exec_runner: %s", stats)
-    return stats
+    ids = [r.get("id") or digest([r["db_id"], r["question"], r.get("gold_sql")]) for r in records]
+    started = time.perf_counter()
+    context = ProcessPoolExecutor(max_workers=max_workers) if max_workers > 1 else nullcontext()
+    with Journal(output_path, spec, ids) as journal:
+        if not journal.complete:
+            with context as pool:
+                for index in range(len(journal.records), len(records)):
+                    record = records[index]
+                    path = database_paths[record["db_id"]]
+                    # Evaluate identical SQL only once; retain every original vote.
+                    sqls = list(dict.fromkeys([record.get("gold_sql", "")] + [c["sql"] for c in record["candidates"]]))
+                    jobs = [(sql, path, timeout) for sql in sqls]
+                    results = list(pool.map(_exec_job, jobs)) if pool else [_exec_job(j) for j in jobs]
+                    by_sql = dict(zip(sqls, results))
+                    gold = by_sql[record.get("gold_sql", "")]
+                    if gold["fingerprint"] is None:
+                        raise ValueError(f"Gold execution failed for {ids[index]}: {gold['error']}")
+                    journal.append({
+                        **record, "id": ids[index], "gold_execution": gold,
+                        "candidates": [{**c, **by_sql[c["sql"]]} for c in record["candidates"]],
+                    })
+            journal.finish()
+        executed = journal.records
+    candidates = [c for r in executed for c in r["candidates"]]
+    return {
+        "total_questions": len(executed), "total_candidates": len(candidates),
+        "total_errors": sum(bool(c["error"]) for c in candidates),
+        "total_empty": sum(c["is_empty"] for c in candidates),
+        "elapsed_s": round(time.perf_counter() - started, 2),
+        "execution_protocol": EXECUTION_VERSION,
+    }
 
 
 def main() -> None:

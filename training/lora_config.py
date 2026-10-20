@@ -1,7 +1,7 @@
 """Load LoRA grid config and generate experiment configurations."""
 
 import itertools
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +55,7 @@ def generate_experiments(
         grid["learning_rates"],
         grid["rslora"],
     ):
-        name = f"r{rank}_{mod_name}_lr{lr}_rslora{rslora}"
+        name = f"{model_key}_r{rank}_{mod_name}_lr{lr}_rslora{rslora}"
         exp = LoRAExperiment(
             name=name,
             model_id=model_id,

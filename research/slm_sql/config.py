@@ -35,6 +35,16 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
         return result
 
     cfg = merge(defaults, overrides)
+    if "sampling_k_values" not in overrides.get("evaluation", {}):
+        cfg["evaluation"]["sampling_k_values"] = [
+            k for k in cfg["evaluation"]["sampling_k_values"]
+            if k <= cfg["generation"]["evaluation_samples"]
+        ] or [cfg["generation"]["evaluation_samples"]]
+    if "adaptive" not in overrides:
+        cfg["adaptive"]["max_k"] = min(
+            cfg["adaptive"]["max_k"], cfg["generation"]["evaluation_samples"]
+        )
+        cfg["adaptive"]["min_k"] = min(cfg["adaptive"]["min_k"], cfg["adaptive"]["max_k"])
     for section, keys in {
         "generation": [
             "train_samples",
@@ -94,6 +104,29 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
         raise ValueError("training.seed must be a nonnegative integer.")
     if cfg["generation"]["model"] == cfg["merger"]["model"]:
         raise ValueError("Generation and CSC must use their respective author checkpoints.")
+    k_values = cfg["evaluation"].get("sampling_k_values")
+    if (
+        not isinstance(k_values, list)
+        or not k_values
+        or len(k_values) != len(set(k_values))
+        or any(not isinstance(k, int) or isinstance(k, bool) or k < 1 for k in k_values)
+    ):
+        raise ValueError("evaluation.sampling_k_values must be unique positive integers.")
+    if max(k_values) > cfg["generation"]["evaluation_samples"]:
+        raise ValueError("evaluation.sampling_k_values cannot exceed evaluation_samples.")
+    adaptive = cfg["adaptive"]
+    if adaptive["policy"] not in ("beta", "margin", "router"):
+        raise ValueError("adaptive.policy must be beta, margin or router.")
+    for key in ("min_k", "max_k", "batch_size"):
+        value = adaptive[key]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise ValueError(f"adaptive.{key} must be a positive integer.")
+    if adaptive["min_k"] > adaptive["max_k"]:
+        raise ValueError("adaptive.min_k cannot exceed adaptive.max_k.")
+    if adaptive["max_k"] > cfg["generation"]["evaluation_samples"]:
+        raise ValueError("adaptive.max_k cannot exceed evaluation_samples.")
+    if not isinstance(adaptive["enabled"], bool) or adaptive["threshold"] <= 0 or adaptive["threshold"] > 1:
+        raise ValueError("adaptive.enabled must be boolean and adaptive.threshold must be in (0, 1].")
     if not cfg["training"]["target_modules"] or not isinstance(
         cfg["training"]["augment_swap"], bool
     ):

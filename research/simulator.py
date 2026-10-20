@@ -6,7 +6,6 @@ For each policy, replay permutations and report EX and candidate costs.
 
 import json
 import random
-import math
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -92,8 +91,12 @@ def simulate_one(
     stop = False
     action = "SAMPLE_MORE"
 
-    for start in range(0, len(permutation), batch_size):
-        batch_indices = permutation[start:start + batch_size]
+    requested = getattr(policy, "k", getattr(policy, "max_k", len(permutation)))
+    if requested > len(permutation):
+        raise ValueError(f"Policy requests {requested} candidates but cache has {len(permutation)}.")
+    budget = min(len(permutation), requested)
+    for start in range(0, budget, batch_size):
+        batch_indices = permutation[start:min(start + batch_size, budget)]
         for idx in batch_indices:
             seen.append(candidates[idx])
             n_used += 1
@@ -103,8 +106,9 @@ def simulate_one(
             break
 
     timing = [_candidate_seconds(candidate) for candidate in seen]
-    measured = [seconds or 0.0 for seconds, _ in timing]
-    seconds_used = sum(measured)
+    seconds_used = sum(seconds for seconds, _ in timing) if all(
+        seconds is not None for seconds, _ in timing
+    ) else None
     timing_sources = {source for _, source in timing}
     seconds_basis = (timing_sources.pop() if len(timing_sources) == 1 else "mixed")
 
@@ -119,89 +123,73 @@ def simulate_one(
         "seconds_basis": seconds_basis,
         "action": action,
         "csc_called": action == "CALL_CSC",
+        "csc_executed": False,
+        "accuracy_basis": "sc_proxy_when_csc_requested" if action == "CALL_CSC" else "sc_vote",
+    }
+
+
+def summarize_questions(questions, *, n_permutations, seed, batch_size):
+    """Bootstrap questions, not correlated permutations of the same question."""
+    from evaluation.final_eval import bootstrap_mean_ci
+
+    def average(key):
+        values = [q[key] for q in questions]
+        return sum(values) / len(values) if values and all(v is not None for v in values) else None
+
+    ci = bootstrap_mean_ci([q["ex"] for q in questions], seed=seed)
+    sample_ci = bootstrap_mean_ci([q["avg_samples"] for q in questions], seed=seed)
+    bases = {q["seconds_basis"] for q in questions}
+    csc = sum(q["csc_calls"] for q in questions)
+    return {
+        "ex_mean": round(ci["mean"], 4),
+        "ex_ci95": round((ci["upper"] - ci["lower"]) / 2, 4),
+        "ex_bootstrap_95": ci,
+        "avg_samples_bootstrap_95": sample_ci,
+        "avg_samples": round(average("avg_samples") or 0.0, 2),
+        "avg_tokens": round(average("avg_tokens") or 0.0, 2),
+        "avg_seconds": average("avg_seconds"),
+        "seconds_basis": next(iter(bases)) if len(bases) == 1 else "mixed" if bases else "unavailable",
+        "seed": seed, "batch_size": batch_size,
+        "csc_calls": csc, "csc_executed": False,
+        "accuracy_basis": "sc_proxy_when_csc_requested" if csc else "sc_vote",
+        "n_questions": len(questions), "n_permutations": n_permutations,
+        "per_question": questions,
     }
 
 
 def simulate_policy(
-    records: list[dict[str, Any]],
-    policy: StoppingPolicy,
-    db_path_fn,
-    n_permutations: int = 100,
-    batch_size: int = 4,
-    seed: int = 42,
+    records: list[dict[str, Any]], policy: StoppingPolicy, db_path_fn,
+    n_permutations: int = 100, batch_size: int = 4, seed: int = 42,
 ) -> dict[str, Any]:
-    """Run full simulation across all questions with multiple permutations."""
+    """Replay candidates and report question-level bootstrap confidence intervals."""
     from research.exec_runner import _exec_one
 
     if n_permutations < 1 or batch_size < 1:
         raise ValueError("n_permutations and batch_size must be positive.")
     rng = random.Random(seed)
-    all_correct = []
-    all_samples = []
-    all_tokens = []
-    all_seconds = []
-    seconds_bases: set[str] = set()
-    total_csc_calls = 0
-
+    questions = []
     for record in records:
-        gold_sql = record.get("gold_sql", "")
-        if not gold_sql:
-            continue
-        gold_result = _exec_one(gold_sql, str(db_path_fn(record["db_id"])))
-        gold_fp = gold_result["fingerprint"]
-
-        n_cands = len(record["candidates"])
-        question_correct = 0
-        question_samples = 0
-        question_tokens = 0.0
-        question_seconds = 0.0
+        gold = record.get("gold_execution") or _exec_one(record.get("gold_sql", ""), str(db_path_fn(record["db_id"])))
+        if gold["fingerprint"] is None:
+            raise ValueError(f"Gold execution failed for {record['db_id']}: {gold.get('error')}")
+        trials = []
         for _ in range(n_permutations):
-            perm = list(range(n_cands))
-            rng.shuffle(perm)
-            result = simulate_one(record, policy, gold_fp, perm, batch_size)
-            question_correct += int(result["correct"])
-            question_samples += result["n_samples_used"]
-            question_tokens += result["n_tokens_used"]
-            question_seconds += result["seconds_used"]
-            seconds_bases.add(result["seconds_basis"])
-            total_csc_calls += int(result["csc_called"])
-
-        all_correct.append(question_correct / n_permutations)
-        all_samples.append(question_samples / n_permutations)
-        all_tokens.append(question_tokens / n_permutations)
-        all_seconds.append(question_seconds / n_permutations)
-
-    n = len(all_correct)
-    if n == 0:
-        return {
-            "ex_mean": 0.0, "ex_ci95": 0.0, "avg_samples": 0.0,
-            "avg_tokens": 0.0, "avg_seconds": 0.0, "seconds_basis": "unavailable",
-            "csc_calls": 0, "n_questions": 0, "n_permutations": n_permutations,
-            "seed": seed, "batch_size": batch_size,
-        }
-
-    ex_mean = sum(all_correct) / n
-    ex_std = math.sqrt(sum((x - ex_mean) ** 2 for x in all_correct) / n)
-    ex_ci95 = 1.96 * ex_std / math.sqrt(n)
-
-    avg_samples = sum(all_samples) / n
-    avg_tokens = sum(all_tokens) / n
-    avg_seconds = sum(all_seconds) / n
-    seconds_basis = next(iter(seconds_bases)) if len(seconds_bases) == 1 else "mixed"
-
-    return {
-        "ex_mean": round(ex_mean, 4),
-        "ex_ci95": round(ex_ci95, 4),
-        "avg_samples": round(avg_samples, 2),
-        "avg_tokens": round(avg_tokens, 2),
-        "avg_seconds": round(avg_seconds, 6),
-        "seconds_basis": seconds_basis,
-        "seed": seed,
-        "batch_size": batch_size,
-        "csc_calls": total_csc_calls,
-        "n_questions": n,
-        "n_permutations": n_permutations,
-    }
+            permutation = list(range(len(record["candidates"])))
+            rng.shuffle(permutation)
+            trials.append(simulate_one(record, policy, gold["fingerprint"], permutation, batch_size))
+        bases = {t["seconds_basis"] for t in trials}
+        timed = all(t["seconds_used"] is not None for t in trials)
+        questions.append({
+            "id": record.get("id", record["db_id"] + "::" + record["question"]),
+            "db_id": record["db_id"],
+            "ex": sum(t["correct"] for t in trials) / n_permutations,
+            "avg_samples": sum(t["n_samples_used"] for t in trials) / n_permutations,
+            "avg_tokens": sum(t["n_tokens_used"] for t in trials) / n_permutations,
+            "avg_seconds": sum(t["seconds_used"] for t in trials) / n_permutations if timed else None,
+            "seconds_basis": next(iter(bases)) if len(bases) == 1 else "mixed",
+            "csc_calls": sum(t["csc_called"] for t in trials),
+        })
+    return summarize_questions(questions, n_permutations=n_permutations, seed=seed, batch_size=batch_size)
 
 
 def simulate_multiple_policies(

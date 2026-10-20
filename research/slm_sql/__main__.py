@@ -24,7 +24,10 @@ def plan(cfg: dict, seed=42) -> dict:
         stages[split] = {}
         for stage in (
             "generation",
+            "greedy.generation",
+            "greedy.execution",
             "execution",
+            "adaptive",
             f"author.csc-k{cfg['generation'][f'{split}_samples']}",
             f"lora.csc-k{cfg['generation'][f'{split}_samples']}",
         ):
@@ -61,6 +64,7 @@ def plan(cfg: dict, seed=42) -> dict:
             "train",
             "merge --variant lora",
             "score",
+            "suite",
         ],
         "downloads_or_gpu_started": False,
     }
@@ -87,14 +91,17 @@ def main(argv=None):
         action="store_true",
         help="Evaluate author models using dev only; train splits can be added later without regenerating evaluation candidates",
     )
-    for command in ("plan", "generate", "execute", "baseline", "merge", "pairs", "train", "score"):
+    for command in (
+        "plan", "generate", "execute", "greedy", "adaptive", "baseline", "merge",
+        "pairs", "train", "score", "suite",
+    ):
         cmd = sub.add_parser(command)
         cmd.add_argument("--seed", type=int, default=42)
-        if command in ("generate", "execute", "baseline", "merge", "score"):
+        if command in ("generate", "execute", "greedy", "adaptive", "baseline", "merge", "score", "suite"):
             cmd.add_argument(
                 "--split", choices=("train", "validation", "evaluation"), default="evaluation"
             )
-        if command in ("baseline", "merge", "score"):
+        if command in ("baseline", "merge", "score", "suite"):
             cmd.add_argument(
                 "--k",
                 type=int,
@@ -104,6 +111,12 @@ def main(argv=None):
             cmd.add_argument("--variant", choices=("author", "lora"), default="author")
         if command == "score":
             cmd.add_argument("--baseline-only", action="store_true")
+    freeze_parser = sub.add_parser("freeze", help="Freeze adapter/config/source and final seeds before final LoRA inference (CPU)")
+    freeze_parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
+    freeze_parser.add_argument("--ks", nargs="+", type=int)
+    report_parser = sub.add_parser("report", help="Aggregate paired inference seeds without pooling repeated questions (CPU)")
+    report_parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
+    report_parser.add_argument("--k", type=int)
     args = parser.parse_args(argv)
     cfg = load_config(args.config)
     seed = getattr(args, "seed", 42)
@@ -123,10 +136,20 @@ def main(argv=None):
                 cfg["generation"][key] = 4
             cfg["merger"]["samples"] = 2
             cfg["training"]["epochs"] = 1
+            cfg["evaluation"]["sampling_k_values"] = [1, 2, 4]
+            cfg["adaptive"]["max_k"] = 4
+            cfg["adaptive"]["min_k"] = 2
         atomic_json(args.output, cfg)
         result = {"config": str(args.output), "pilot": args.pilot}
     elif args.command == "plan":
         result = plan(cfg, seed)
+    elif args.command == "freeze":
+        from research.slm_sql.protocol import freeze
+        value = freeze(cfg, args.seeds, args.ks)
+        result = {"signature": value["signature"], "reused": value["reused"]}
+    elif args.command == "report":
+        from research.slm_sql.protocol import aggregate_seeds
+        result = aggregate_seeds(cfg, args.seeds, args.k)
     elif args.command == "prepare":
         from research.slm_sql.data import prepare
 
@@ -158,13 +181,23 @@ def main(argv=None):
                 cmd += ["--k", str(args.k)]
             subprocess.run(cmd, check=True)
         result = {"baseline": "complete", "split": args.split, "seed": seed}
-    elif args.command in ("generate", "execute", "merge"):
-        from research.slm_sql.pipeline import execute_stage, generate_stage, merge_stage
+    elif args.command in ("generate", "execute", "greedy", "adaptive", "merge"):
+        from research.slm_sql.pipeline import (
+            adaptive_stage,
+            execute_stage,
+            generate_stage,
+            merge_stage,
+        )
 
         if args.command == "generate":
             result = generate_stage(cfg, args.split, seed)
         elif args.command == "execute":
             result = execute_stage(cfg, args.split, seed)
+        elif args.command == "greedy":
+            generate_stage(cfg, args.split, seed, mode="greedy")
+            result = execute_stage(cfg, args.split, seed, mode="greedy")
+        elif args.command == "adaptive":
+            result = adaptive_stage(cfg, args.split, seed)
         else:
             result = merge_stage(cfg, args.split, seed, variant=args.variant, k=args.k)
     elif args.command == "pairs":
@@ -181,6 +214,10 @@ def main(argv=None):
             "adapter": str(Path(cfg["experiment_dir"]) / "adapter" / "final"),
             "reused": trained["reused"],
         }
+    elif args.command == "suite":
+        from research.slm_sql.sampling import evaluate_suite
+
+        result = evaluate_suite(cfg, args.split, seed, k=args.k)
     else:
         from research.slm_sql.evaluation import score
 

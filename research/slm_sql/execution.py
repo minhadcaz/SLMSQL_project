@@ -99,7 +99,7 @@ def execute(sql: str, db_path: str | Path, *, timeout=30, max_rows=1000000, prev
                 if time.monotonic() >= deadline:
                     raise TimeoutError("sql_timeout")
                 result["fingerprint"] = hashlib.sha256(b"".join(sorted(keys))).hexdigest()
-    except (sqlite3.Error, ValueError, OSError, sqlglot.errors.SqlglotError) as exc:
+    except (sqlite3.Error, ValueError, OSError, TimeoutError, sqlglot.errors.SqlglotError) as exc:
         result["error"] = (
             "sql_timeout" if time.monotonic() >= deadline else f"{type(exc).__name__}: {exc}"
         )

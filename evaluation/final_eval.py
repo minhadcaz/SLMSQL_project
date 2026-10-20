@@ -213,3 +213,38 @@ def evaluate_pipeline_records(
     if output_path is not None:
         write_json(output_path, summary)
     return summary
+
+
+def paired_report_test(adaptive: dict, fixed: dict) -> dict:
+    """Refuse intersections, duplicates and mismatched benchmark questions."""
+    left, right = adaptive.get("records", []), fixed.get("records", [])
+    left_ids, right_ids = [r["id"] for r in left], [r["id"] for r in right]
+    if not left or len(left_ids) != len(set(left_ids)) or len(right_ids) != len(set(right_ids)):
+        raise ValueError("Paired reports need nonempty unique question IDs.")
+    if set(left_ids) != set(right_ids) or adaptive.get("seed") != fixed.get("seed"):
+        raise ValueError("Paired reports must contain exactly the same questions and seed.")
+    left_protocol = adaptive.get("provenance", {}).get("protocol_signature")
+    right_protocol = fixed.get("provenance", {}).get("protocol_signature")
+    if left_protocol or right_protocol:
+        if left_protocol != right_protocol:
+            raise ValueError("Paired reports must come from the same prospective protocol.")
+    left_model = adaptive.get("config", {}).get("model", {})
+    right_model = fixed.get("config", {}).get("model", {})
+    for key in ("backend", "model_id", "device", "dtype", "quantization"):
+        if key in left_model or key in right_model:
+            if left_model.get(key) != right_model.get(key):
+                raise ValueError("Paired reports must use the same model configuration.")
+    lookup = {r["id"]: r for r in right}
+    paired = [(a, lookup[a["id"]]) for a in left]
+    for a, b in paired:
+        if any(a.get(key) != b.get(key) for key in ("db_id", "question", "gold_sql")):
+            raise ValueError("Paired question content differs.")
+    differences = [int(a["correct"]) - int(b["correct"]) for a, b in paired]
+    return {
+        "paired_ids": left_ids,
+        "mcnemar": mcnemar_test([a["correct"] for a, _ in paired], [b["correct"] for _, b in paired]),
+        "paired_delta_ci95": bootstrap_mean_ci(differences),
+        "adaptive_avg_samples": adaptive.get("average_candidates"),
+        "fixed_avg_samples": fixed.get("average_candidates"),
+        "budget_note": "Report observed costs; a fixed-16 comparator alone does not establish equal compute budgets.",
+    }

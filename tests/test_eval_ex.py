@@ -1,8 +1,6 @@
 """Tests for benchmarks.eval_ex — execution accuracy evaluator."""
 
 import sqlite3
-import tempfile
-from pathlib import Path
 
 import pytest
 

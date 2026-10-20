@@ -16,10 +16,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.prompt_builder import build_prompt
+from research.slm_sql.prompts import generation_messages
 from core.sql_extractor import extract_sql
 from research.simulator import StoppingPolicy, simulate_policy
-from training.prompt_template import SYSTEM_MESSAGE
 
 
 def _record_id(record: dict[str, Any]) -> tuple[str, str]:
@@ -43,13 +42,8 @@ def _save_checkpoint(path: Path, data: dict[str, Any]) -> None:
 
 
 def _completion_logprob(completion: Any) -> float:
-    """Average sampled-token log probabilities when provided by vLLM."""
-    values = []
-    for token_id, alternatives in zip(completion.token_ids, completion.logprobs or []):
-        item = alternatives.get(token_id) if alternatives else None
-        if item is not None:
-            values.append(item.logprob)
-    return round(sum(values) / len(values), 4) if values else 0.0
+    from research.generation_metrics import completion_logprob
+    return completion_logprob(completion)
 
 
 def _difference(online: float, offline: float) -> float:
@@ -84,12 +78,13 @@ def compare_offline(
     }
     comparable = not any(r["action"] == "CALL_CSC" for r in online_records) and not offline["csc_calls"]
     metrics = ("ex_mean", "avg_samples", "avg_tokens", "avg_seconds")
-    deviations = {name: round(_difference(online[name], offline[name]), 4) for name in metrics}
+    deviations = {name: round(_difference(online[name], offline[name]), 4)
+                  if online[name] is not None and offline[name] is not None else None for name in metrics}
     return {
         "online": online,
         "offline": offline,
         "relative_deviation": deviations,
-        "within_5_percent": comparable and n > 0 and all(d <= 0.05 for d in deviations.values()),
+        "within_5_percent": comparable and n > 0 and all(d is not None and d <= 0.05 for d in deviations.values()),
         "comparable": comparable,
         "note": (
             "CSC is executed online but not in the offline policy simulator."
@@ -111,13 +106,8 @@ def _run_question(
 
     tokenizer = llm.get_tokenizer()
     db_path = str(db_path_fn(record["db_id"]))
-    schema = record["schema"]
-    messages = [
-        {"role": "system", "content": SYSTEM_MESSAGE},
-        {"role": "user", "content": build_prompt(
-            record["question"], schema, record.get("evidence", "")
-        )},
-    ]
+    schema = record.get("schema", {})
+    messages = generation_messages(record, schema if isinstance(schema, str) else json.dumps(schema, ensure_ascii=False))
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     seen: list[dict[str, Any]] = []
     action = "SAMPLE_MORE"
@@ -192,6 +182,8 @@ def _run_question(
 
     gold_sql = record.get("gold_sql", "")
     gold_fp = _exec_one(gold_sql, db_path)["fingerprint"] if gold_sql else None
+    if gold_fp is None:
+        raise ValueError(f"Gold execution failed for {record['db_id']}: {record['question']}")
     return {
         "question": record["question"], "db_id": record["db_id"],
         "gold_sql": gold_sql, "difficulty": record.get("difficulty", "unknown"),

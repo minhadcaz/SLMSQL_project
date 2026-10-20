@@ -285,15 +285,19 @@ def prepare_bird_dev(
 
 
 def resolve_synsql_raw(repo_dir: str | Path | None = None) -> Path | None:
-    """Find an explicitly supplied synthetic training file without downloading it."""
+    """Find supplied SynSQL or author SynsQL-Think JSON without downloading it."""
     configured = os.environ.get("SYNSQL_RAW")
     candidates = [Path(configured).expanduser()] if configured else []
     root = Path(repo_dir or resolve_repo_dir())
     candidates.extend([
         root / "data" / "synsql" / "raw.jsonl",
         root / "data" / "synsql" / "syn_think.jsonl",
+        root / "data" / "synsql" / "train_bird_think.json",
+        root / "data" / "synsql" / "train_synsql_think.json",
         Path("/kaggle/input/synsql/raw.jsonl"),
         Path("/kaggle/input/synsql-think/raw.jsonl"),
+        Path("/kaggle/input/synsql-think-916k/train_bird_think.json"),
+        Path("/kaggle/input/synsql-think-916k/train_synsql_think.json"),
     ])
     for candidate in candidates:
         if candidate.is_file():

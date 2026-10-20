@@ -27,7 +27,8 @@ from research.slm_sql.config import artifact_path, load_config
 from research.slm_sql.data import load_split, prepare
 from research.slm_sql.evaluation import score
 from research.slm_sql.execution import execute, result_fingerprint
-from research.slm_sql.pipeline import execute_stage, generate_stage, merge_stage
+from research.slm_sql.pipeline import adaptive_stage, execute_stage, generate_stage, merge_stage
+from research.slm_sql.sampling import evaluate_suite
 
 CORRECT = "SELECT SUM(amount) FROM sales"
 WRONG = "SELECT COUNT(*) FROM sales"
@@ -80,7 +81,8 @@ def experiment(tmp_path):
                     "batch_size": 2,
                 },
                 "merger": {"samples": 2, "batch_size": 2},
-                "evaluation": {"bootstrap_samples": 40},
+                    "evaluation": {"bootstrap_samples": 40, "sampling_k_values": [1, 2, 4]},
+                    "adaptive": {"min_k": 2, "max_k": 4, "batch_size": 2},
             }
         )
     )
@@ -434,6 +436,27 @@ def test_prefix_k_reuses_generation_and_exposes_missing_timing(experiment):
     assert all(r["costs"]["author_csc"]["amortized_generation_s"] is None for r in raw["records"])
 
 
+def test_author_sampling_suite_covers_greedy_fixed_and_adaptive(experiment):
+    prepare(experiment)
+    _generate_execute(experiment, "evaluation")
+    generate_stage(experiment, "evaluation", mode="greedy", backend_factory=FakeBackend)
+    execute_stage(experiment, "evaluation", mode="greedy")
+    adaptive_stage(experiment, backend_factory=FakeBackend)
+    merge_stage(experiment, k=2, backend_factory=FakeBackend)
+    merge_stage(experiment, k=4, backend_factory=FakeBackend)
+
+    result = evaluate_suite(experiment)
+    report = read_json(result["path"])
+    assert report["summary"]["greedy"]["questions"] == 6
+    assert set(report["summary"]["fixed"]) == {"1", "2", "4"}
+    assert report["summary"]["fixed"]["2"]["pass@k"]["ex"] == pytest.approx(2 / 3)
+    assert report["summary"]["fixed"]["2"]["sc@k"]["ex"] == pytest.approx(1 / 3)
+    assert report["summary"]["fixed"]["2"]["author_csc@k"]["questions"] == 6
+    assert report["summary"]["adaptive"]["questions"] == 6
+    assert report["summary"]["adaptive"]["mean_samples"] == pytest.approx(4.0)
+    assert all("slm_sql@k" in row for row in report["records"])
+
+
 def test_plan_is_cpu_only_and_config_typos_fail(experiment, tmp_path):
     from research.slm_sql.__main__ import plan
 
@@ -542,3 +565,50 @@ def test_private_hub_adapter_round_trip_preserves_pair_provenance(
     with pytest.raises(ValueError, match="restored training pairs"):
         restore_csc_adapter(experiment)
     assert not adapter.exists()
+
+
+def test_prospective_freeze_and_multi_seed_comparison(experiment):
+    from research.slm_sql.protocol import freeze, verify_freeze, aggregate_seeds
+
+    cfg = experiment
+    prepare(cfg)
+    _baseline(cfg)
+    for split in ("train", "validation"):
+        _generate_execute(cfg, split)
+    build_pairs(cfg)
+    _fake_adapter(cfg)
+    frozen = freeze(cfg, seeds=[42, 43], ks=[4])
+    assert not frozen["reused"]
+    assert freeze(cfg, seeds=[42, 43], ks=[4])["reused"]
+    with pytest.raises(ValueError, match="not declared"):
+        verify_freeze(cfg, 44, 4)
+    for seed in (42, 43):
+        generate_stage(cfg, "evaluation", seed=seed, backend_factory=FakeBackend)
+        execute_stage(cfg, "evaluation", seed=seed)
+        merge_stage(cfg, seed=seed, backend_factory=FakeBackend)
+        merge_stage(cfg, seed=seed, variant="lora", backend_factory=FakeBackend)
+    result = aggregate_seeds(cfg, seeds=[42, 43], k=4)
+    report = read_json(result["path"])
+    assert report["paired_delta_ci95"]["n"] == 6  # 6 questions, not 12 seed/question rows.
+    assert len(report["paired_tests_by_seed"]) == 2
+    assert report["summary"]["lora_csc"]["ex_mean"] > report["summary"]["author_csc"]["ex_mean"]
+    single = read_json(Path(cfg["experiment_dir"]) / "reports/evaluation-seed42-k4.comparison.json")
+    assert 0 <= single["oracle"]["pass_at_k"] <= 1
+    assert single["summary"]["author_csc"]["by_database"]
+    changed = {**cfg, "evaluation": {**cfg["evaluation"], "bootstrap_samples": 41}}
+    with pytest.raises(ValueError, match="after the final freeze"):
+        verify_freeze(changed, 42, 4)
+
+
+def test_freeze_cannot_be_claimed_after_final_lora_predictions(experiment):
+    from research.slm_sql.protocol import freeze
+    cfg = experiment
+    prepare(cfg)
+    _baseline(cfg)
+    for split in ("train", "validation"):
+        _generate_execute(cfg, split)
+    build_pairs(cfg)
+    _fake_adapter(cfg)
+    merge_stage(cfg, variant="lora", backend_factory=FakeBackend)
+    with pytest.raises(ValueError, match="already exist"):
+        freeze(cfg)

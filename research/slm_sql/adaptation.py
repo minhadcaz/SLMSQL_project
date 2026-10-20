@@ -293,6 +293,8 @@ def train_adapter(cfg: dict, seed=42) -> dict:
 
         if model_identity(base_identity["model"], "local") != base_identity:
             raise ValueError("Local merger weights changed after baseline evaluation.")
+    from research.reproducibility import capture_runtime
+    capture_runtime(root, "csc-training")
     set_seed(settings["seed"])
     revision = None if base_identity["revision"] == "local" else base_identity["revision"]
     tokenizer = AutoTokenizer.from_pretrained(base_identity["model"], revision=revision)

@@ -1,24 +1,21 @@
-# Ma trận khảo sát tài liệu — Task 0.1
+# Ma trận tài liệu phương pháp
 
-> Cập nhật lần cuối: ____  
-> Cần xác nhận lại ở task 0.1 (tìm kiếm tháng 9/2026)
+Cập nhật **19/10/2026** từ các bài/nguồn chính: SLM-SQL `arXiv:2507.22478`, CSC-SQL `arXiv:2505.13271`, SQL-R1 `arXiv:2504.08600`, Think2SQL `arXiv:2504.15077`, Adaptive-Consistency `arXiv:2305.11860`, Knowing When to Stop `arXiv:2607.03991`, FINER-SQL `arXiv:2605.03465`, SQuaD-SQL `arXiv:2607.08161`.
 
-| Công trình | Mô hình | Dữ liệu huấn luyện | LoRA/RL | Chọn ứng viên | Adaptive | BIRD dev EX% | Ghi chú |
-|---|---|---|---|---|---|---|---|
-| **SLM-SQL** (Sheng & Xu, IJCNLP-AACL 2025) | Qwen2.5-Coder 0.5B/1.5B | SynSQL-Think-916K (SFT) + BIRD train (RL) | SFT đầy đủ + GRPO | SC + CSC (top-2 merge) | Không (fixed 16/64) | 0.5B: 56.87 (64), 53.22 (16); 1.5B: 67.08 (64), 64.84 (16) | Baseline chính; pass@64=82.64%; CSC chỉ khi phiếu không nhất quán |
-| **CSC-SQL** | — | — | — | Hợp nhất-hiệu chỉnh top-2 | Không | — | Kỹ thuật CSC được SLM-SQL kế thừa |
-| **SQL-R1** | — | — | RL | — | — | — | RL cho Text-to-SQL |
-| **Think2SQL** | — | — | — | — | — | — | CoT reasoning cho SQL |
-| **Adaptive-Consistency** (Aggarwal 2023) | GPT-3.5/4 (LLM lớn) | — | Không | SC + Beta stopping | Có (Beta posterior) | — | Adaptive cho suy luận nói chung, không chuyên Text-to-SQL |
-| **Knowing When to Stop** (arXiv 2607.03991) | GPT-4.1 | — | Không | SC | Có (XGBoost/LR/TCN) | 83 câu BIRD finance | Adaptive cho Text-to-SQL nhưng dùng LLM lớn, 83 câu, không SLM fine-tune, không CSC |
-| **FINER-SQL** | — | — | — | — | — | — | — |
-| **SQuaD-SQL** | — | — | — | — | — | — | — |
+| Công trình | Mô hình / dữ liệu | Học | Chọn ứng viên / adaptive | Kết quả hoặc giao thức được dùng để đối chiếu | Ý nghĩa với repo |
+|---|---|---|---|---|---|
+| **SLM-SQL** | Qwen2.5-Coder 0.5B/1.5B; SynSQL-Think-916K cho SFT, BIRD train cho RL; SynSQL-Merge-Think-310K cho merger | SFT + GRPO; inference generator rồi CSC | Vote execution; nếu có bất đồng lấy top-2 group cho merge, merger sinh nhiều draft rồi SC; 16/64 generator samples, 8 merge samples; báo cáo trung bình 3 run | BIRD dev: 0.5B 53.22 (16), 56.87 (64); 1.5B 64.84 (16), 67.08 (64); pass@64 82.64% trong bài | Luồng 09–11 giữ generator/merger tác giả và cache paired; số bài chỉ là reference, không điền vào kết quả repo |
+| **CSC-SQL** | Qwen family và nhiều model lớn hơn; BIRD/Spider | GRPO cho generator và merge revision; reward EX + format | Top-2 execution groups, merge revision rồi SC; không có adaptive trong giao thức gốc | BIRD dev cải thiện CSC so với SC khoảng 0.72–5.54 điểm tùy model/k; 3B đạt 65.28 dev trong bài | Là baseline kỹ thuật cho router; repo không gọi CSC proxy là EX |
+| **SQL-R1** | Qwen2.5-Coder 3B/7B/14B; SynSQL-2.5M và SynSQL-Complex-5K; BIRD/Spider | Reasoning SFT + GRPO/RLVR với format, execution, result và length rewards | 8 rollouts, nhiệt độ 0.8; SC | BIRD dev 67.1% cho 14B trong bản bài đang đối chiếu; Spider test 88.6% | Cảnh báo rằng RL/partial reward là hướng liên quan nhưng không nằm trong main 09–11 |
+| **Think2SQL** | Qwen2.5-Coder 0.5B–14B; BIRD distilled reasoning traces và RLVR; Spider, Spider-Syn, Spider-DK, KaggleDBQA | Reasoning SFT trên 1,142 trace được chọn + GRPO/RLVR; QATCH partial rewards | Sinh theo shared prompt, temperature 0.7, top-p 0.95; không phải CSC | BIRD dev báo weighted score; Think2SQL-14B 0.602, bản 0.5B/1.5B cũng được báo cáo; không dùng các số này làm mốc 1.5B SLM-SQL | Nhắc phải tách task-specific reasoning khỏi generic CoT và không gọi ablation `short_cot` là reasoning mới |
+| **Adaptive-Consistency** | LLM reasoning/coding nhiều dataset, không chuyên Text-to-SQL | Không fine-tune; posterior Beta/Dirichlet/CRP trên vote groups | Dừng khi xác suất majority ổn định; Beta dùng top-2/leader-runner-up posterior, threshold mặc định 0.95 | Báo cáo giảm khoảng 2–4 lần sample với accuracy gần tương đương trên các task; không phải BIRD SLM | Cơ sở cho `BetaStoppingPolicy`; repo dùng exact Beta CDF, chỉ diễn giải ổn định consensus |
+| **Knowing When to Stop** | GPT-4.1; BIRD finance subset 83 câu và 2 customer datasets; 100 runs/câu | Logistic/XGBoost/TCN dự đoán hội tụ của chuỗi đúng/sai; 5-fold theo câu, permutation augmentation | Input là chuỗi verdict correctness theo từng run, được tạo bằng gold judge; không phải trực tiếp execution-group top-2 | Báo cáo feature XGBoost AUC 0.913 sạch, logistic 0.908; lag-1 gần 0 trong dữ liệu của bài | Repo chỉ mượn ý tưởng permutation/serial diagnostic; không tuyên bố đã tái hiện verifier hay AUC của bài trên SLM |
+| **FINER-SQL** | 0.5B/1.5B/3B; BIRD và Spider; memory traces + execution/atomic rewards | SFT + GRPO; fine-grained memory và atomic reward | Sampling/vote; khoảng 30–50 candidates trong các phân tích | BIRD dev 3B 67.73%, Spider dev 85.0% theo bài; memory làm giảm execution groups trong ablation | Là công trình gần về SLM + execution feedback; cần tránh tuyên bố novelty rộng cho adaptive/consensus |
+| **SQuaD-SQL** | Qwen 1.5B; WikiSQL, synthetic GPT-4o data | LoRA + knowledge distillation, domain-adaptive synthetic data | Không phải CSC/adaptive; single-table WikiSQL | WikiSQL test 86.9% theo bài; không so trực tiếp với BIRD | Nhắc rằng kết quả WikiSQL không dùng làm evidence cho BIRD multi-table |
 
-## Khoảng trống chính
+## Khoảng trống sau khi cập nhật
 
-1. **G1**: Chưa có adaptive sampling cho SLM fine-tuned (chỉ có cho LLM lớn)
-2. **G2**: Chưa có routing 3 hành động (dừng/thêm mẫu/gọi CSC)
-3. **G3**: Chưa có phân tích LoRA vs full SFT cho Text-to-SQL SLM
-4. **G4-G7**: CoT trade-off, chất lượng ứng viên, khái quát hóa, từ chối khi không chắc
-
-> **TODO**: Điền đầy đủ sau khi đọc kỹ từng bài (task 0.1 thực tế)
+- Có adaptive stopping cho LLM lớn và có các bài SLM/RL mới, nhưng chưa có bằng chứng trong repo cho **adaptive stopping trên generator SLM-SQL của tác giả cùng CSC merger và chi phí thực tế**.
+- Router ba hành động vẫn là đề xuất thử nghiệm trong repo. Bản mô phỏng có nhãn `sc_proxy_when_csc_requested`; chỉ một lần merge thực trên GPU mới tạo EX cho nhánh `CALL_CSC`.
+- LoRA trên merger tác giả trong 09–11 là câu hỏi thực nghiệm cụ thể. Chưa có kết quả GPU để kết luận cải thiện.
+- Các mốc published khác nhau về model size, prompt, data và seed; không dùng để suy ra hơn kém nếu protocol không khớp.

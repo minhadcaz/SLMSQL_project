@@ -20,7 +20,27 @@ def merge_and_save(
 
     Must run on GPU environment.
     """
+    from research.slm_sql.artifacts import atomic_json, file_hash, read_json
+    adapter_path = Path(adapter_path)
+    config = read_json(adapter_path / "adapter_config.json")
+    if config.get("base_model_name_or_path") != base_model:
+        raise ValueError("Adapter base checkpoint differs from the requested base model.")
+    spec = {
+        "base_model": base_model, "adapter": {
+            p.name: file_hash(p) for p in adapter_path.iterdir() if p.name.startswith("adapter_")
+        }, "max_seq_len": max_seq_len, "load_in_4bit": load_in_4bit,
+    }
+    output_path = Path(output_path)
+    manifest_path = output_path / "merge_manifest.json"
+    if manifest_path.exists():
+        previous = read_json(manifest_path)
+        if previous["spec"] != spec or any(file_hash(output_path / name) != value for name, value in previous["files"].items()):
+            raise ValueError("Merged model or adapter changed; choose a separate output directory.")
+        return previous["result"]
+    if output_path.exists() and any(output_path.glob("*.safetensors")):
+        raise ValueError("Existing merged weights have no manifest; use a fresh output directory.")
     from unsloth import FastLanguageModel
+    import torch
 
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -28,7 +48,7 @@ def merge_and_save(
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=str(adapter_path),
         max_seq_length=max_seq_len,
-        dtype=None,
+        dtype=torch.float16,
         load_in_4bit=load_in_4bit,
     )
 
@@ -38,12 +58,17 @@ def merge_and_save(
         save_method="merged_16bit",
     )
 
-    return {
+    result = {
         "base_model": base_model,
         "adapter_path": str(adapter_path),
         "output_path": str(output_path),
         "method": "merged_16bit",
     }
+    atomic_json(manifest_path, {
+        "spec": spec, "result": result,
+        "files": {p.name: file_hash(p) for p in output_path.iterdir() if p.suffix in (".safetensors", ".bin", ".json") and p != manifest_path},
+    })
+    return result
 
 
 def measure_latency(
