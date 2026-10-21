@@ -27,8 +27,8 @@ def _load(root: Path, name: str) -> list[dict]:
     if not isinstance(items, list) or not items:
         raise ValueError(f"Expected nonempty benchmark records: {source}")
     rows = []
-    seen = set()
-    for item in items:
+    seen_source_ids = set()
+    for index, item in enumerate(items):
         db_id = item["db_id"]
         if not isinstance(db_id, str) or Path(db_id).name != db_id or db_id in ("", ".", ".."):
             raise ValueError("Invalid BIRD database ID.")
@@ -41,10 +41,22 @@ def _load(root: Path, name: str) -> list[dict]:
             or not question.strip()
         ):
             raise ValueError(f"Missing question/gold SQL in {source}")
-        identity = digest([db_id, question.strip(), sql.strip()])
-        if identity in seen:
-            raise ValueError(f"Duplicate benchmark record in {source}: {db_id}")
-        seen.add(identity)
+        question_id = item.get("question_id")
+        if question_id is None:
+            source_id = ["content", question.strip(), sql.strip()]
+        else:
+            if (
+                isinstance(question_id, bool)
+                or not isinstance(question_id, (int, str))
+                or (isinstance(question_id, str) and not question_id.strip())
+            ):
+                raise ValueError(f"Invalid question_id in {source}: {question_id!r}")
+            source_id = ["question_id", type(question_id).__name__, question_id]
+        source_key = (db_id, *source_id)
+        if source_key in seen_source_ids:
+            raise ValueError(f"Duplicate question_id in {source}: {question_id!r}")
+        seen_source_ids.add(source_key)
+        identity = digest([db_id, source_id, question.strip(), sql.strip()])
         path = root / f"{name}_databases" / db_id / f"{db_id}.sqlite"
         if not path.is_file():
             raise FileNotFoundError(f"Missing SQLite database: {path}")
@@ -98,7 +110,9 @@ def prepare(cfg: dict, *, evaluation_only: bool = False) -> dict:
         inputs["train"] = file_hash(train_root / "train.json")
     evaluation_keys = ("evaluation_dir", "evaluation_limit", "schema_sample_rows")
     previous = read_json(manifest_path) if manifest_path.exists() else None
-    signature = digest({"settings": settings, "inputs": inputs, "version": 2})
+    if previous and previous.get("format_version") != 3:
+        raise ValueError("Prepared data format changed. Choose a new experiment_dir.")
+    signature = digest({"settings": settings, "inputs": inputs, "version": 3})
     if previous:
         if previous["inputs"]["evaluation"] != inputs["evaluation"] or any(
             previous["settings"][key] != settings[key] for key in evaluation_keys
@@ -184,6 +198,7 @@ def prepare(cfg: dict, *, evaluation_only: bool = False) -> dict:
         partitions[split] = rows
         write_jsonl(folder / f"{split}.jsonl", rows)
     manifest = {
+        "format_version": 3,
         "signature": signature,
         "settings": settings,
         "inputs": inputs,

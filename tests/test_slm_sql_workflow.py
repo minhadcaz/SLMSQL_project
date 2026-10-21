@@ -24,7 +24,7 @@ from research.slm_sql.artifacts import (
     read_json,
 )
 from research.slm_sql.config import artifact_path, load_config, merge_artifact_path
-from research.slm_sql.data import load_split, prepare
+from research.slm_sql.data import _load, load_split, prepare
 from research.slm_sql.evaluation import score
 from research.slm_sql.execution import execute, result_fingerprint
 from research.slm_sql.pipeline import (
@@ -204,6 +204,31 @@ def test_prepare_database_disjoint_and_reused(experiment):
     schema.write_text('{"text": "modified"}')
     with pytest.raises(ValueError, match="schema was modified"):
         load_split(experiment, "train")
+
+
+def test_bird_repeated_question_text_keeps_distinct_question_ids(experiment):
+    root = Path(experiment["data"]["evaluation_dir"])
+    records = json.loads((root / "dev.json").read_text())
+    duplicate = {**records[0], "question_id": 863}
+    second = {**duplicate, "question_id": 875}
+    (root / "dev.json").write_text(json.dumps([duplicate, second]))
+
+    loaded = _load(root, "dev")
+
+    assert len(loaded) == 2
+    assert loaded[0]["id"] != loaded[1]["id"]
+    assert loaded[0]["question"] == loaded[1]["question"]
+    assert loaded[0]["gold_sql"] == loaded[1]["gold_sql"]
+
+
+def test_bird_duplicate_question_id_is_rejected(experiment):
+    root = Path(experiment["data"]["evaluation_dir"])
+    records = json.loads((root / "dev.json").read_text())
+    duplicate = {**records[0], "question_id": 863}
+    (root / "dev.json").write_text(json.dumps([duplicate, duplicate]))
+
+    with pytest.raises(ValueError, match="Duplicate question_id"):
+        _load(root, "dev")
 
 
 def test_prepare_rejects_overlap_and_database_change(experiment):
