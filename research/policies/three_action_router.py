@@ -9,6 +9,7 @@ an actual merger run and its additional token/time budget.
 from collections import Counter
 
 from research.calibration import compute_features
+from research.slm_sql.policy_view import policy_view
 from research.policies.learned_stopper import LearnedStopperPolicy
 
 
@@ -42,6 +43,7 @@ class ThreeActionRouterPolicy:
         }
 
     def _estimate_confidence(self, candidates: list[dict]) -> tuple[float, float]:
+        candidates = policy_view(candidates)
         features = compute_features(candidates)
         leader = (self.leader_estimator._predict_proba(candidates)
                   if self.leader_estimator._model is not None else features["leader_ratio"])
@@ -54,20 +56,22 @@ class ThreeActionRouterPolicy:
     def should_stop(self, candidates_so_far: list[dict], step: int) -> tuple[bool, str]:
         if step < self.min_k:
             return False, "SAMPLE_MORE"
-        if step >= self.max_k:
-            return True, "STOP"
         leader, top2 = self._estimate_confidence(candidates_so_far)
         if leader >= self.stop_threshold:
             return True, "STOP"
         if top2 >= self.csc_threshold and len(self.select_csc_inputs(candidates_so_far)) == 2:
             return True, "CALL_CSC"
+        if step >= self.max_k:
+            return False, "SAMPLE_MORE"
         return False, "SAMPLE_MORE"
 
     def select(self, candidates: list[dict]) -> str | None:
+        candidates = policy_view(candidates)
         votes = Counter(c["fingerprint"] for c in candidates if c.get("fingerprint") and not c.get("error"))
         return votes.most_common(1)[0][0] if votes else None
 
     def select_csc_inputs(self, candidates: list[dict]) -> list[str]:
+        candidates = policy_view(candidates)
         votes = Counter(c["fingerprint"] for c in candidates if c.get("fingerprint") and not c.get("error"))
         return [next(c["sql"] for c in candidates if c.get("fingerprint") == fp and not c.get("error"))
                 for fp, _ in votes.most_common(2)]

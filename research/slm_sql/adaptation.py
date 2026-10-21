@@ -20,7 +20,7 @@ from research.slm_sql.artifacts import (
     read_jsonl,
     write_jsonl,
 )
-from research.slm_sql.config import artifact_path
+from research.slm_sql.config import artifact_path, merge_artifact_path
 from research.slm_sql.data import get_schema, load_split
 from research.slm_sql.pipeline import load_execution
 from research.slm_sql.prompts import merge_messages, top_groups
@@ -420,7 +420,7 @@ def _check_weights(folder, expected):
         raise ValueError("Adapter weights or adapter configuration were modified.")
 
 
-def validate_adapter(cfg, split, seed, k):
+def validate_adapter(cfg, split, seed, k, *, source="fixed"):
     _pairs_for_training(cfg, verify_databases=False)
     root = Path(cfg["experiment_dir"]) / "adapter"
     metadata = read_json(root / "training_manifest.json")
@@ -430,8 +430,15 @@ def validate_adapter(cfg, split, seed, k):
     if metadata["spec"]["pairs"] != current_pairs["signature"]:
         raise ValueError("Adapter was trained on different pairs.")
     _check_weights(root / "final", metadata["adapter_files"])
-    _, baseline = completed_artifact(artifact_path(cfg, split, f"author.csc-k{k}", seed))
-    if baseline.get("model_identity") != metadata["base_identity"]:
+    rows, baseline = completed_artifact(
+        merge_artifact_path(cfg, split, seed, "author", k, source=source)
+    )
+    base_identity = baseline.get("model_identity")
+    if base_identity is None and not any(row["csc_called"] for row in rows):
+        # k=1 and unanimous adaptive runs need no inference. Bind them to the
+        # experiment's established merger without pretending a model was loaded.
+        base_identity = read_json(Path(cfg["experiment_dir"]) / "models/merger.json")["identity"]
+    if base_identity != metadata["base_identity"]:
         raise ValueError("Author baseline and LoRA must have identical merger base weights.")
     adapter_config = read_json(root / "final" / "adapter_config.json")
     base = adapter_config.get("base_model_name_or_path")

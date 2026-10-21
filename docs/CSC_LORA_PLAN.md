@@ -20,12 +20,12 @@ Không huấn luyện lại Qwen, không cần SynSQL, không chạy lại RL tr
 Không chạy GPU khi artifact phù hợp đã hoàn tất. Dữ liệu và weights không có sẵn
 trong source; các kết quả EX chỉ được công bố khi có artifact đánh giá thật.
 
-## Kết quả kiểm tra triển khai
+## Kết quả kiểm tra triển khai ban đầu (lịch sử)
 
 - `python -m pytest -q --tb=short`: **118 passed**, gồm 19 trường hợp trong
   `tests/test_slm_sql_workflow.py`; SQLite thật và backend GPU giả.
 - Ruff lint và format check: đạt. `git diff --check`: đạt.
-- JSON của toàn bộ notebooks hợp lệ; Python cells của 09–11 parse thành công.
+- JSON của toàn bộ notebooks hợp lệ; Python cells của 09–12 parse thành công.
 - CLI `--help`, `init --pilot`, `plan`: chạy được trên CPU, không download model.
   CLI `baseline` đã kiểm thử chạy lại trên cache hoàn tất mà không cần vLLM/GPU.
 - Đã kiểm thử dev-only baseline rồi thêm train/validation mà không sinh lại dev;
@@ -34,6 +34,14 @@ trong source; các kết quả EX chỉ được công bố khi có artifact đ�
 
 Môi trường kiểm thử local dùng Python 3.14.8 và sqlglot 26.16.4. Đây là kiểm thử
 logic/CLI và regression, chưa phải xác nhận stack CUDA của hai dependency profile.
+
+## Mở rộng sampling ngày 20/10/2026
+
+Đã mở rộng 09–12 để đo greedy riêng, fixed-k/pass@k/SC/author CSC/LoRA CSC và
+adaptive online với author/LoRA CSC trên cùng stopped candidates. Thiết kế,
+checklist triển khai và phần GPU còn lại trong
+[SLM_SQL_SAMPLING_PLAN.md](SLM_SQL_SAMPLING_PLAN.md). Kết quả kiểm thử mới nhất
+ở [verification.md](../results/verification.md); các con số ở mục trước là lịch sử.
 
 ## Thí nghiệm cần chạy trên dữ liệu/model thật
 

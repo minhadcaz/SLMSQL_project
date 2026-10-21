@@ -9,6 +9,67 @@ from pathlib import Path
 from evaluation.final_eval import bootstrap_mean_ci
 from research.reproducibility import source_state
 from research.slm_sql.artifacts import atomic_json, digest, file_hash, read_json
+from research.slm_sql.config import artifact_path
+
+
+def load_selected_policy(cfg: dict, *, required: bool = True) -> tuple[dict | None, str | None]:
+    """Load and verify the validation-selected adaptive policy provenance."""
+    root = Path(cfg["experiment_dir"])
+    selected_path = root / "adaptive" / "selected_policy.json"
+    if not selected_path.is_file():
+        if required:
+            raise ValueError(
+                "Selected adaptive policy is missing. Run "
+                "adaptive-sweep --split validation before final evaluation."
+            )
+        return None, None
+    selected = read_json(selected_path)
+    if selected.get("source_split") != "validation":
+        raise ValueError("Selected adaptive policy must be selected from split validation.")
+    parameters = selected.get("parameters")
+    if not isinstance(parameters, dict):
+        raise ValueError("Selected adaptive policy parameters must be a mapping.")
+    provenance = selected.get("validation_artifacts")
+    if not isinstance(provenance, dict):
+        raise ValueError("Selected adaptive policy has no validation artifact provenance.")
+    report_info = provenance.get("report")
+    if not isinstance(report_info, dict) or not report_info.get("path") or not report_info.get("sha256"):
+        raise ValueError("Selected adaptive policy is missing its validation report hash.")
+    report_path = Path(report_info["path"])
+    if not report_path.is_absolute():
+        report_path = root / report_path
+    if not report_path.is_file() or file_hash(report_path) != report_info["sha256"]:
+        raise ValueError("Selected adaptive policy validation report is missing or modified.")
+    report = read_json(report_path)
+    if report.get("source_split") != "validation" or report.get("selected", {}).get("parameters") != parameters:
+        raise ValueError("Selected adaptive policy does not match its validation report.")
+    if report.get("execution") != provenance.get("execution"):
+        raise ValueError("Selected adaptive policy execution provenance does not match its report.")
+    if report.get("merge_manifests") != provenance.get("merges"):
+        raise ValueError("Selected adaptive policy merge provenance does not match its report.")
+    if report.get("checkpoints") != selected.get("checkpoints"):
+        raise ValueError("Selected adaptive policy checkpoints do not match its validation report.")
+    if not isinstance(provenance.get("execution"), str) or not provenance["execution"]:
+        raise ValueError("Selected adaptive policy is missing validation execution provenance.")
+    merges = provenance.get("merges")
+    if not isinstance(merges, dict) or not all(isinstance(merges.get(name), dict) for name in ("author", "lora")):
+        raise ValueError("Selected adaptive policy is missing validation merge provenance.")
+    seed = report.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("Selected adaptive policy validation seed is invalid.")
+    from research.slm_sql.artifacts import completed_artifact
+    from research.slm_sql.pipeline import load_execution
+
+    _, execution_manifest = load_execution(cfg, "validation", seed)
+    if execution_manifest.get("sha256") != provenance["execution"]:
+        raise ValueError("Selected adaptive policy validation execution artifact changed.")
+    for variant in ("author", "lora"):
+        for checkpoint, expected_hash in merges[variant].items():
+            merge_path = artifact_path(cfg, "validation", f"{variant}.csc-k{checkpoint}", seed)
+            _, manifest = completed_artifact(merge_path)
+            if manifest.get("sha256") != expected_hash:
+                raise ValueError("Selected adaptive policy validation merge artifact changed.")
+    return selected, file_hash(selected_path)
 
 
 def _contract(cfg, seeds, ks):
@@ -20,6 +81,7 @@ def _contract(cfg, seeds, ks):
         raise ValueError("Complete the configured adapter before freezing final evaluation.")
     _check_weights(root / "adapter/final", training["adapter_files"])
     prepared = read_json(root / "data/manifest.json")
+    _, selected_policy_hash = load_selected_policy(cfg, required=cfg["adaptive"]["enabled"])
     return {
         "version": 1, "config": cfg, "inference_seeds": seeds, "k_values": ks,
         "data_signature": prepared["signature"],
@@ -27,21 +89,35 @@ def _contract(cfg, seeds, ks):
         "generator": read_json(root / "models/generator.json"),
         "merger": read_json(root / "models/merger.json"),
         "adapter_signature": training["signature"], "adapter_files": training["adapter_files"],
+        "selected_policy": selected_policy_hash,
         "source": {key: value for key, value in source_state().items() if key != "git_dirty"},
     }
 
 
 def freeze(cfg, seeds=(42, 43, 44), ks=None):
-    seeds, ks = list(seeds), list(ks or [cfg["generation"]["evaluation_samples"]])
+    seeds = list(seeds)
+    ks = list(cfg["evaluation"]["sampling_k_values"] if ks is None else ks)
     if not seeds or len(seeds) != len(set(seeds)) or any(not isinstance(s, int) or isinstance(s, bool) or s < 0 for s in seeds):
         raise ValueError("Final seeds must be unique nonnegative integers.")
-    if not ks or len(ks) != len(set(ks)) or any(not isinstance(k, int) or isinstance(k, bool) or not 1 <= k <= cfg["generation"]["evaluation_samples"] for k in ks):
-        raise ValueError("Final k must fit the configured generation cache.")
+    declared_ks = set(cfg["evaluation"]["sampling_k_values"])
+    if (
+        not ks
+        or len(ks) != len(set(ks))
+        or any(
+            not isinstance(k, int)
+            or isinstance(k, bool)
+            or not 1 <= k <= cfg["generation"]["evaluation_samples"]
+            for k in ks
+        )
+        or not set(ks).issubset(declared_ks)
+    ):
+        raise ValueError("Final k must be declared in evaluation.sampling_k_values.")
     root = Path(cfg["experiment_dir"])
     path = root / "final_protocol.json"
     if not path.exists() and (
         list((root / "reports").glob("evaluation-*.comparison.json"))
         or list(root.glob("seed*/evaluation.lora.csc-*.jsonl"))
+        or list(root.glob("seed*/evaluation.lora.adaptive-csc.jsonl"))
     ):
         raise ValueError("Final LoRA predictions already exist; use a new experiment to claim a prospective freeze.")
     contract = _contract(cfg, seeds, ks)
@@ -55,13 +131,13 @@ def freeze(cfg, seeds=(42, 43, 44), ks=None):
     return {**value, "reused": False}
 
 
-def verify_freeze(cfg, seed, k):
+def verify_freeze(cfg, seed, k=None):
     path = Path(cfg["experiment_dir"]) / "final_protocol.json"
     if not path.exists():
         return None  # Exploratory single-seed runs remain supported and are labeled.
     frozen = read_json(path)
     spec = frozen["spec"]
-    if seed not in spec["inference_seeds"] or k not in spec["k_values"]:
+    if seed not in spec["inference_seeds"] or (k is not None and k not in spec["k_values"]):
         raise ValueError("Seed/k was not declared in the final protocol.")
     if spec != _contract(cfg, spec["inference_seeds"], spec["k_values"]) or frozen["signature"] != digest(spec):
         raise ValueError("Config, data, source or adapter changed after the final freeze.")

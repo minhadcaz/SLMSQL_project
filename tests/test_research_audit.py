@@ -19,6 +19,7 @@ from research.policies.fixed_k import FixedKPolicy
 from research.policies.learned_stopper import LearnedStopperPolicy
 from research.simulator import simulate_one, simulate_policy
 from research.slm_sql.execution import execute
+from research.slm_sql.policy_view import policy_view
 from training.data_prep import filter_synsql, filter_by_token_length
 from training.sft_trainer import encode_sft_records
 
@@ -47,9 +48,9 @@ def test_beta_uses_exact_top_two_not_all_losing_groups():
 
 
 def test_auc_ties_are_half_credit_independent_of_row_order():
-    from sklearn.metrics import roc_auc_score
     rows = [{"x": x, "sc_correct": y} for x, y in [(0, 1), (0, 0), (1, 1), (1, 0), (2, 1)]]
-    expected = round(roc_auc_score([r["sc_correct"] for r in rows], [r["x"] for r in rows]), 4)
+    # Mann-Whitney AUC: tied positive/negative scores receive half credit.
+    expected = 0.6667
     assert feature_auc(rows, "x") == expected
     assert feature_auc(list(reversed(rows)), "x") == expected
     assert feature_auc([{"x": 1, "sc_correct": y} for y in (1, 0, 1, 0)], "x") == 0.5
@@ -64,6 +65,19 @@ def test_zero_logprob_and_failed_sql_lengths_are_observed_features():
     assert features["mean_sql_length"] == 8
     assert features["schema_size"] == 15
     assert features["error_ratio"] == 0.5
+
+
+def test_policy_view_handles_nested_errors_empty_results_and_legacy_candidates():
+    rows = policy_view([
+        {"sql": "SELECT 1", "execution": {"fingerprint": "a", "row_count": 0}},
+        {"sql": "SELECT", "execution": {"error": "syntax"}},
+        {"sql": "bad", "parse_error": "missing answer"},
+        {"sql": "SELECT 2", "fingerprint": "legacy", "row_count": 1},
+    ])
+    assert rows[0]["is_empty"] and rows[0]["error"] is None
+    assert rows[1]["fingerprint"] is None and rows[1]["error"] == "syntax"
+    assert rows[2]["fingerprint"] is None and rows[2]["error"] == "missing answer"
+    assert rows[3]["fingerprint"] == "legacy"
 
 
 def test_single_negative_class_stopper_never_becomes_confident():
@@ -220,6 +234,24 @@ def test_legacy_generation_cache_is_reused_without_gpu_and_config_changes_fail(t
     assert TinyBackend.calls == calls
     with pytest.raises(ValueError, match="configuration changed"):
         generate_candidates("test-model", prompts, n_candidates=8, cache_path=path, backend_factory=TinyBackend)
+
+
+def test_legacy_online_adapter_guard_checks_base_and_canonical_manifest(tmp_path):
+    from research.online_adaptive import _validate_legacy_csc_adapter
+
+    model = tmp_path / "model"
+    adapter = tmp_path / "adapter"
+    model.mkdir()
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text(json.dumps({
+        "base_model_name_or_path": str(model),
+    }))
+    _validate_legacy_csc_adapter(adapter, model)
+    with pytest.raises(ValueError, match="base_model_name_or_path differs"):
+        _validate_legacy_csc_adapter(adapter, tmp_path / "other-model")
+    (tmp_path / "training_manifest.json").write_text("{}")
+    with pytest.raises(ValueError, match="canonical 09-11 CSC merger flow"):
+        _validate_legacy_csc_adapter(adapter, model)
 
 
 def test_author_synsql_think_input_output_seq_is_normalized(tmp_path):

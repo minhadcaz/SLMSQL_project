@@ -40,10 +40,16 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
             k for k in cfg["evaluation"]["sampling_k_values"]
             if k <= cfg["generation"]["evaluation_samples"]
         ] or [cfg["generation"]["evaluation_samples"]]
-    if "adaptive" not in overrides:
+    if "checkpoints" not in overrides.get("adaptive", {}):
+        cfg["adaptive"]["checkpoints"] = [
+            k for k in cfg["adaptive"].get("checkpoints", [])
+            if k <= cfg["generation"]["evaluation_samples"]
+        ] or [cfg["generation"]["evaluation_samples"]]
+    if "max_k" not in overrides.get("adaptive", {}):
         cfg["adaptive"]["max_k"] = min(
             cfg["adaptive"]["max_k"], cfg["generation"]["evaluation_samples"]
         )
+    if "min_k" not in overrides.get("adaptive", {}):
         cfg["adaptive"]["min_k"] = min(cfg["adaptive"]["min_k"], cfg["adaptive"]["max_k"])
     for section, keys in {
         "generation": [
@@ -108,8 +114,8 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
     if (
         not isinstance(k_values, list)
         or not k_values
-        or len(k_values) != len(set(k_values))
         or any(not isinstance(k, int) or isinstance(k, bool) or k < 1 for k in k_values)
+        or len(k_values) != len(set(k_values))
     ):
         raise ValueError("evaluation.sampling_k_values must be unique positive integers.")
     if max(k_values) > cfg["generation"]["evaluation_samples"]:
@@ -117,7 +123,14 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
     adaptive = cfg["adaptive"]
     if adaptive["policy"] not in ("beta", "margin", "router"):
         raise ValueError("adaptive.policy must be beta, margin or router.")
-    for key in ("min_k", "max_k", "batch_size"):
+    checkpoints = adaptive.get("checkpoints")
+    if (not isinstance(checkpoints, list) or not checkpoints
+        or any(not isinstance(k, int) or isinstance(k, bool) or k < 1 for k in checkpoints)
+        or len(checkpoints) != len(set(checkpoints))):
+        raise ValueError("adaptive.checkpoints must be unique positive integers.")
+    if max(checkpoints) > cfg["generation"]["evaluation_samples"]:
+        raise ValueError("adaptive.checkpoints cannot exceed evaluation_samples.")
+    for key in ("min_k", "max_k", "batch_size", "margin"):
         value = adaptive[key]
         if not isinstance(value, int) or isinstance(value, bool) or value < 1:
             raise ValueError(f"adaptive.{key} must be a positive integer.")
@@ -125,8 +138,23 @@ def load_config(path: str | Path = DEFAULT_CONFIG) -> dict:
         raise ValueError("adaptive.min_k cannot exceed adaptive.max_k.")
     if adaptive["max_k"] > cfg["generation"]["evaluation_samples"]:
         raise ValueError("adaptive.max_k cannot exceed evaluation_samples.")
-    if not isinstance(adaptive["enabled"], bool) or adaptive["threshold"] <= 0 or adaptive["threshold"] > 1:
+    if (not isinstance(adaptive["enabled"], bool)
+        or not isinstance(adaptive["threshold"], (int, float))
+        or isinstance(adaptive["threshold"], bool)
+        or not 0 < adaptive["threshold"] <= 1):
         raise ValueError("adaptive.enabled must be boolean and adaptive.threshold must be in (0, 1].")
+    if (not isinstance(adaptive.get("stop_threshold", 0.9), (int, float))
+        or isinstance(adaptive.get("stop_threshold", 0.9), bool)
+        or not 0 < adaptive.get("stop_threshold", 0.9) <= 1
+        or not isinstance(adaptive.get("csc_threshold", 0.7), (int, float))
+        or isinstance(adaptive.get("csc_threshold", 0.7), bool)
+        or not 0 < adaptive.get("csc_threshold", 0.7) <= 1
+        or not isinstance(adaptive.get("call_csc_at_budget", False), bool)):
+        raise ValueError("adaptive router thresholds must be in (0, 1] and call_csc_at_budget must be boolean.")
+    if (not isinstance(adaptive["entropy_threshold"], (int, float))
+        or isinstance(adaptive["entropy_threshold"], bool)
+        or not 0 <= adaptive["entropy_threshold"] < float("inf")):
+        raise ValueError("adaptive.entropy_threshold must be finite and nonnegative.")
     if not cfg["training"]["target_modules"] or not isinstance(
         cfg["training"]["augment_swap"], bool
     ):
@@ -142,3 +170,10 @@ def artifact_path(cfg: dict, split: str, stage: str, seed: int) -> Path:
     if split not in ("train", "validation", "evaluation"):
         raise ValueError(f"Unknown split: {split}")
     return Path(cfg["experiment_dir"]) / f"seed{seed}" / f"{split}.{stage}.jsonl"
+
+
+def merge_artifact_path(cfg, split, seed, variant, k=None, *, source="fixed"):
+    if source not in ("fixed", "adaptive"):
+        raise ValueError("CSC source must be fixed or adaptive.")
+    stage = f"{variant}.csc-k{k}" if source == "fixed" else f"{variant}.adaptive-csc"
+    return artifact_path(cfg, split, stage, seed)

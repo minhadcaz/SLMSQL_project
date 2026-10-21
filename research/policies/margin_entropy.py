@@ -3,6 +3,8 @@
 import math
 from collections import Counter
 
+from research.slm_sql.policy_view import policy_view
+
 
 class MarginEntropyPolicy:
     def __init__(
@@ -18,10 +20,9 @@ class MarginEntropyPolicy:
         self.max_k = max_k
 
     def should_stop(self, candidates_so_far: list[dict], step: int) -> tuple[bool, str]:
+        candidates_so_far = policy_view(candidates_so_far)
         if step < self.min_k:
             return False, "SAMPLE_MORE"
-        if step >= self.max_k:
-            return True, "STOP"
 
         fps = [c.get("fingerprint") for c in candidates_so_far if c.get("fingerprint")]
         if len(fps) < 2:
@@ -47,6 +48,7 @@ class MarginEntropyPolicy:
         return False, "SAMPLE_MORE"
 
     def select(self, candidates: list[dict]) -> str | None:
+        candidates = policy_view(candidates)
         fps = [c.get("fingerprint") for c in candidates if c.get("fingerprint")]
         if not fps:
             return None

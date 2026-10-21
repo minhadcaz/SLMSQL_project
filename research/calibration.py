@@ -4,9 +4,12 @@ import math
 from collections import Counter
 from typing import Any
 
+from research.slm_sql.policy_view import policy_view
+
 
 def compute_features(candidates: list[dict[str, Any]]) -> dict[str, float]:
     """Only inference-time signals; no gold SQL or labels enter the features."""
+    candidates = policy_view(candidates)
     fps = [c["fingerprint"] for c in candidates if c.get("fingerprint") and not c.get("error")]
     n_total, n_valid = len(candidates), len(fps)
     votes = Counter(fps)
@@ -124,7 +127,10 @@ def cross_validate_stopper(
     n_splits=5, n_permutations=100, seed=42,
 ) -> dict:
     """Evaluate once per held-out DB. Threshold is declared before CV, not tuned on test folds."""
-    from sklearn.model_selection import GroupKFold
+    try:
+        from sklearn.model_selection import GroupKFold
+    except ModuleNotFoundError:
+        GroupKFold = None
     from research.policies.learned_stopper import LearnedStopperPolicy
     from research.simulator import simulate_policy, summarize_questions
 
@@ -132,10 +138,18 @@ def cross_validate_stopper(
     count = min(n_splits, len(set(db_ids)))
     if count < 2:
         raise ValueError("DB-disjoint CV requires at least two databases.")
+    if GroupKFold is None:
+        group_order = list(dict.fromkeys(db_ids))
+        fold_indices = []
+        for fold in range(count):
+            test_groups = set(group_order[fold::count])
+            test_indices = [i for i, db_id in enumerate(db_ids) if db_id in test_groups]
+            train_indices = [i for i, db_id in enumerate(db_ids) if db_id not in test_groups]
+            fold_indices.append((train_indices, test_indices))
+    else:
+        fold_indices = GroupKFold(n_splits=count).split(records, groups=db_ids)
     folds, questions = [], []
-    for index, (train_indices, test_indices) in enumerate(
-        GroupKFold(n_splits=count).split(records, groups=db_ids)
-    ):
+    for index, (train_indices, test_indices) in enumerate(fold_indices):
         train_records = [records[i] for i in train_indices]
         test_records = [records[i] for i in test_indices]
         train_dbs = sorted({r["db_id"] for r in train_records})

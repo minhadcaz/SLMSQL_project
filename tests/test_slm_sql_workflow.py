@@ -23,15 +23,27 @@ from research.slm_sql.artifacts import (
     file_hash,
     read_json,
 )
-from research.slm_sql.config import artifact_path, load_config
+from research.slm_sql.config import artifact_path, load_config, merge_artifact_path
 from research.slm_sql.data import load_split, prepare
 from research.slm_sql.evaluation import score
 from research.slm_sql.execution import execute, result_fingerprint
-from research.slm_sql.pipeline import adaptive_stage, execute_stage, generate_stage, merge_stage
-from research.slm_sql.sampling import evaluate_suite
+from research.slm_sql.pipeline import (
+    _execution_spec, _generation_spec, adaptive_stage, execute_stage, generate_stage,
+    load_adaptive, load_generation, merge_stage,
+)
+from research.slm_sql.sampling import aggregate_suites, evaluate_suite
 
 CORRECT = "SELECT SUM(amount) FROM sales"
 WRONG = "SELECT COUNT(*) FROM sales"
+
+
+def _shape(value):
+    """Keep artifact contract tests independent of paths, hashes and timings."""
+    if isinstance(value, dict):
+        return {key: _shape(item) for key, item in sorted(value.items())}
+    if isinstance(value, list):
+        return [_shape(value[0])] if value else []
+    return type(value).__name__
 
 
 @pytest.fixture
@@ -81,8 +93,8 @@ def experiment(tmp_path):
                     "batch_size": 2,
                 },
                 "merger": {"samples": 2, "batch_size": 2},
-                    "evaluation": {"bootstrap_samples": 40, "sampling_k_values": [1, 2, 4]},
-                    "adaptive": {"min_k": 2, "max_k": 4, "batch_size": 2},
+                "evaluation": {"bootstrap_samples": 40, "sampling_k_values": [1, 2, 4]},
+                "adaptive": {"min_k": 2, "max_k": 4, "batch_size": 2},
             }
         )
     )
@@ -168,6 +180,16 @@ def _fake_adapter(cfg):
     }
     atomic_json(folder.parent / "training_manifest.json", metadata)
     return folder
+
+
+def _select_validation_policy(cfg, seed=42):
+    from research.slm_sql.adaptive_eval import adaptive_sweep
+
+    for variant in ("author", "lora"):
+        for checkpoint in cfg["adaptive"]["checkpoints"]:
+            merge_stage(cfg, split="validation", seed=seed, k=checkpoint,
+                        variant=variant, backend_factory=FakeBackend)
+    return adaptive_sweep(cfg, split="validation", seed=seed)
 
 
 def test_prepare_database_disjoint_and_reused(experiment):
@@ -436,25 +458,88 @@ def test_prefix_k_reuses_generation_and_exposes_missing_timing(experiment):
     assert all(r["costs"]["author_csc"]["amortized_generation_s"] is None for r in raw["records"])
 
 
+def test_stage_specs_and_record_shapes_are_regression_locked(experiment):
+    prepare(experiment)
+    _, data_manifest = load_split(experiment, "evaluation")
+    generation_spec = _generation_spec(experiment, "evaluation", 42, data_manifest)
+    assert digest(_shape(generation_spec)) == (
+        "768c26da1c27fcaad1151314f98e0af078601dd041aad2a7b504f7543044bae6"
+    )
+
+    generate_stage(experiment, "evaluation", backend_factory=FakeBackend)
+    execute_stage(experiment, "evaluation")
+    generated, generation_manifest = completed_artifact(
+        artifact_path(experiment, "evaluation", "generation", 42)
+    )
+    executed, execution_manifest = completed_artifact(
+        artifact_path(experiment, "evaluation", "execution", 42)
+    )
+    assert digest(_shape(generated[0])) == (
+        "e89372d2d5db73f8611cc15529d790e09762c9b3cb1986cbd402cb6da0195d8f"
+    )
+    execution_spec = _execution_spec(experiment, "evaluation", 42, generation_manifest)
+    assert digest(_shape(execution_spec)) == (
+        "3557a60a91e2fbb6e043ffdd5cf7d63d376c70205db0e52609117de1f80260ce"
+    )
+    assert digest(_shape(executed[0])) == (
+        "191c4106fdd68bcd3f71e0cda3acb455da28133356a59327a15efc0c903db161"
+    )
+
+    merge_stage(experiment, k=4, backend_factory=FakeBackend)
+    merged, merge_manifest = completed_artifact(
+        merge_artifact_path(experiment, "evaluation", 42, "author", 4)
+    )
+    assert digest(_shape(merge_manifest["spec"])) == (
+        "3db79a2c4988fc5d26f82125e0244ce14056ff8b307c7f5a0ee5843c79b50267"
+    )
+    assert digest(_shape(merged[0])) == (
+        "99cd45a6f85a632bfa597d605cff1fd22e2b11cdd5d9026d9cde5e413ee266f0"
+    )
+
+    report = read_json(score(experiment, k=4, baseline_only=True)["path"])
+    assert digest(_shape(report["records"][0])) == (
+        "64c254ae246aec4ae2dcfe47c860046d304e706a23677ea1ea2b60cb88b78fcb"
+    )
+    assert digest(_shape(report["summary"])) == (
+        "7389a71239a6766609566cf02568592e150614a7b5ada2af234be341cfab0840"
+    )
+
+
+def _sampling_baseline(cfg, seed=42):
+    generate_stage(cfg, "evaluation", seed, backend_factory=FakeBackend)
+    execute_stage(cfg, "evaluation", seed)
+    generate_stage(cfg, "evaluation", seed, mode="greedy", backend_factory=FakeBackend)
+    execute_stage(cfg, "evaluation", seed, mode="greedy")
+    if cfg["adaptive"]["enabled"]:
+        adaptive_stage(cfg, seed=seed, backend_factory=FakeBackend)
+    for k in cfg["evaluation"]["sampling_k_values"]:
+        merge_stage(cfg, seed=seed, k=k, backend_factory=FakeBackend)
+    if cfg["adaptive"]["enabled"]:
+        merge_stage(cfg, seed=seed, source="adaptive", backend_factory=FakeBackend)
+
+
 def test_author_sampling_suite_covers_greedy_fixed_and_adaptive(experiment):
     prepare(experiment)
-    _generate_execute(experiment, "evaluation")
-    generate_stage(experiment, "evaluation", mode="greedy", backend_factory=FakeBackend)
-    execute_stage(experiment, "evaluation", mode="greedy")
-    adaptive_stage(experiment, backend_factory=FakeBackend)
-    merge_stage(experiment, k=2, backend_factory=FakeBackend)
-    merge_stage(experiment, k=4, backend_factory=FakeBackend)
-
-    result = evaluate_suite(experiment)
+    _sampling_baseline(experiment)
+    result = evaluate_suite(experiment, baseline_only=True)
     report = read_json(result["path"])
     assert report["summary"]["greedy"]["questions"] == 6
-    assert set(report["summary"]["fixed"]) == {"1", "2", "4"}
-    assert report["summary"]["fixed"]["2"]["pass@k"]["ex"] == pytest.approx(2 / 3)
-    assert report["summary"]["fixed"]["2"]["sc@k"]["ex"] == pytest.approx(1 / 3)
-    assert report["summary"]["fixed"]["2"]["author_csc@k"]["questions"] == 6
-    assert report["summary"]["adaptive"]["questions"] == 6
+    fixed = report["summary"]["fixed"]
+    assert set(fixed) == {"1", "2", "4"}
+    assert fixed["2"]["pass@k"] == pytest.approx(2 / 3)
+    assert fixed["2"]["estimated_pass@k"] == pytest.approx(11 / 18)
+    assert fixed["2"]["self_consistency@k"]["ex"] == pytest.approx(1 / 3)
+    assert fixed["2"]["author_csc@k"]["questions"] == 6
+    assert fixed["2"]["slm_sql@k"] == fixed["2"]["author_csc@k"]
     assert report["summary"]["adaptive"]["mean_samples"] == pytest.approx(4.0)
-    assert all("slm_sql@k" in row for row in report["records"])
+    assert "adaptive_author_csc" in report["summary"]["methods"]
+    assert fixed["1"]["pass@k"] != fixed["1"]["estimated_pass@k"]
+    for row in report["records"]:
+        assert row["costs"]["sc@2"]["generation_s"] is None
+        assert row["costs"]["author_csc@2"]["generation_merge_s"] is None
+        cost = row["costs"]["author_csc@4"]
+        assert cost["output_tokens"] == cost["generation_tokens"] + cost["merge_tokens"]
+    assert Path(result["path"]).with_suffix(".csv").is_file()
 
 
 def test_plan_is_cpu_only_and_config_typos_fail(experiment, tmp_path):
@@ -577,6 +662,7 @@ def test_prospective_freeze_and_multi_seed_comparison(experiment):
         _generate_execute(cfg, split)
     build_pairs(cfg)
     _fake_adapter(cfg)
+    _select_validation_policy(cfg)
     frozen = freeze(cfg, seeds=[42, 43], ks=[4])
     assert not frozen["reused"]
     assert freeze(cfg, seeds=[42, 43], ks=[4])["reused"]
@@ -598,6 +684,40 @@ def test_prospective_freeze_and_multi_seed_comparison(experiment):
     changed = {**cfg, "evaluation": {**cfg["evaluation"], "bootstrap_samples": 41}}
     with pytest.raises(ValueError, match="after the final freeze"):
         verify_freeze(changed, 42, 4)
+    selected_path = Path(cfg["experiment_dir"]) / "adaptive" / "selected_policy.json"
+    selected_path.write_bytes(selected_path.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="after the final freeze"):
+        verify_freeze(cfg, 42, 4)
+
+
+def test_adaptive_validation_selection_freeze_and_offline_evaluation(experiment):
+    from research.slm_sql.adaptive_eval import adaptive_sweep, evaluate_adaptive_csc
+    from research.slm_sql.protocol import freeze
+
+    cfg = experiment
+    prepare(cfg)
+    with pytest.raises(ValueError, match="only on split validation"):
+        adaptive_sweep(cfg, split="evaluation")
+    _sampling_baseline(cfg)
+    for split in ("train", "validation"):
+        _generate_execute(cfg, split)
+    build_pairs(cfg)
+    _fake_adapter(cfg)
+    selected = _select_validation_policy(cfg)
+    assert selected["selected_policy"]
+    with pytest.raises(ValueError, match="Run freeze"):
+        evaluate_adaptive_csc(cfg, split="evaluation")
+    freeze(cfg, seeds=[42], ks=[1, 2, 4])
+    merge_stage(cfg, split="evaluation", variant="lora", k=4, backend_factory=FakeBackend)
+    evaluated = evaluate_adaptive_csc(cfg, split="evaluation", seed=42)
+    report = read_json(evaluated["path"])
+    assert report["accuracy_basis"] == "offline_prefix_exact"
+    assert report["policy_provenance"]["execution"]
+    assert report["summary"]["adaptive"]["questions"] == 6
+    for row in report["records"]:
+        cost = row["costs"]["adaptive"]
+        assert cost["output_tokens"] == cost["generation_tokens"] + cost["merge_tokens"]
+        assert cost["generation_samples"] == row["adaptive"]["checkpoint"]
 
 
 def test_freeze_cannot_be_claimed_after_final_lora_predictions(experiment):
@@ -612,3 +732,309 @@ def test_freeze_cannot_be_claimed_after_final_lora_predictions(experiment):
     merge_stage(cfg, variant="lora", backend_factory=FakeBackend)
     with pytest.raises(ValueError, match="already exist"):
         freeze(cfg)
+
+
+@pytest.mark.parametrize("policy", ["beta", "margin"])
+def test_adaptive_really_stops_early_from_nested_execution_votes(experiment, policy):
+    cfg = copy.deepcopy(experiment)
+    cfg["generation"]["evaluation_samples"] = 8
+    cfg["adaptive"].update(policy=policy, min_k=4, max_k=8, batch_size=4)
+    prepare(cfg)
+
+    class Counting(FakeBackend):
+        requests = []
+
+        def generate(self, messages, *, n, seeds):
+            self.requests.append((str(messages[0]), n, seeds[0]))
+            return super().generate(messages, n=n, seeds=seeds)
+
+    adaptive_stage(cfg, backend_factory=Counting)
+    rows, _ = load_adaptive(cfg, "evaluation", 42)
+    assert len(Counting.requests) == 10
+    assert sum(n for _, n, _ in Counting.requests) == 40 < 6 * 8
+    for row in rows:
+        unanimous = "unanimous:" in row["question"]
+        assert row["n_samples_used"] == (4 if unanimous else 8)
+        assert row["stop_reason"] == ("consensus" if unanimous else "budget")
+        if "invalid:" in row["question"]:
+            assert row["selected_fp"] is None
+            assert row["selected_sql"] == ""
+        elif unanimous:
+            assert row["selected_sql"] == CORRECT
+            assert row["selected_fp"] == row["gold_execution"]["fingerprint"]
+        else:
+            assert row["selected_sql"] == WRONG  # first-generated group wins ties
+        assert all(c["seed"] == r["seed"] for r in row["rounds"]
+                   for c in row["candidates"][r["cumulative_samples"] - r["samples"]:r["cumulative_samples"]])
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Complete online-adaptive cache must not load a model")
+
+    assert adaptive_stage(cfg, backend_factory=forbidden)["reused"]
+    assert not artifact_path(cfg, "evaluation", "generation", 42).exists()
+    changed = copy.deepcopy(cfg)
+    changed["adaptive"]["threshold"] = 0.99
+    with pytest.raises(ValueError, match="no longer matches"):
+        load_adaptive(changed, "evaluation", 42)
+    changed = copy.deepcopy(cfg)
+    changed["execution"]["timeout"] += 1
+    with pytest.raises(ValueError, match="no longer matches"):
+        load_adaptive(changed, "evaluation", 42)
+
+
+def test_adaptive_resume_retries_only_incomplete_question_and_checks_packages(experiment):
+    prepare(experiment)
+
+    class Interrupting(FakeBackend):
+        count = 0
+
+        def generate(self, *args, **kwargs):
+            self.count += 1
+            if self.count == 3:
+                raise RuntimeError("adaptive interruption")
+            return super().generate(*args, **kwargs)
+
+    with pytest.raises(RuntimeError, match="adaptive interruption"):
+        adaptive_stage(experiment, backend_factory=Interrupting)
+    path = artifact_path(experiment, "evaluation", "adaptive", 42)
+    before = path.read_bytes()
+    assert len(before.splitlines()) == 1
+
+    class Upgraded(FakeBackend):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.versions = {"backend": "upgraded"}
+
+    with pytest.raises(ValueError, match="Inference package versions changed"):
+        adaptive_stage(experiment, backend_factory=Upgraded)
+    adaptive_stage(experiment, backend_factory=FakeBackend)
+    assert path.read_bytes().startswith(before)
+    rows, _ = load_adaptive(experiment, "evaluation", 42)
+    assert len(rows) == 6
+    assert len({r["id"] for r in rows}) == 6
+
+
+def test_router_adaptive_merge_only_loads_merger_for_call_csc(experiment):
+    cfg = copy.deepcopy(experiment)
+    cfg["adaptive"].update(policy="router", min_k=2, max_k=4, batch_size=2)
+    prepare(cfg)
+    adaptive_stage(cfg, backend_factory=FakeBackend)
+
+    class MergerOnly(FakeBackend):
+        def __init__(self, settings, **kwargs):
+            if settings["model"] == cfg["generation"]["model"]:
+                raise AssertionError("adaptive-merge must not load the generator")
+            super().__init__(settings, **kwargs)
+
+    merge_stage(cfg, source="adaptive", backend_factory=MergerOnly)
+    rows, _ = completed_artifact(merge_artifact_path(cfg, "evaluation", 42, "author", source="adaptive"))
+    adaptive_rows, _ = load_adaptive(cfg, "evaluation", 42)
+    assert any(row["csc_called"] for row in rows)
+    assert all(output["csc_called"] == (record["adaptive_action"] == "CALL_CSC")
+               for output, record in zip(rows, adaptive_rows))
+
+
+def test_budget_csc_runs_only_when_policy_has_not_reached_consensus(experiment):
+    cfg = copy.deepcopy(experiment)
+    cfg["adaptive"].update(
+        policy="beta", min_k=4, max_k=4, batch_size=2, threshold=0.95,
+        call_csc_at_budget=True,
+    )
+    prepare(cfg)
+    adaptive_stage(cfg, backend_factory=FakeBackend)
+    rows, _ = load_adaptive(cfg, "evaluation", 42)
+    by_kind = {row["question"].split(":", 1)[0]: row for row in rows}
+
+    assert by_kind["unanimous"]["adaptive_action"] == "STOP"
+    assert by_kind["unanimous"]["stop_reason"] == "consensus"
+    assert by_kind["disputed"]["adaptive_action"] == "CALL_CSC"
+    assert by_kind["disputed"]["stop_reason"] == "budget_csc"
+    assert by_kind["invalid"]["adaptive_action"] == "STOP"
+    assert by_kind["invalid"]["stop_reason"] == "budget"
+
+    merge_stage(cfg, source="adaptive", backend_factory=FakeBackend)
+    merged, _ = completed_artifact(
+        merge_artifact_path(cfg, "evaluation", 42, "author", source="adaptive")
+    )
+    merged_by_id = {row["id"]: row for row in merged}
+    for kind, row in by_kind.items():
+        assert merged_by_id[row["id"]]["csc_called"] is (kind == "disputed")
+
+
+def test_offline_budget_csc_preserves_consensus_stop(experiment):
+    from research.slm_sql.adaptive_eval import _score_policy
+
+    cfg = copy.deepcopy(experiment)
+    cfg["adaptive"].update(
+        policy="beta", min_k=4, max_k=4, batch_size=2, threshold=0.95,
+        call_csc_at_budget=True,
+    )
+    prepare(cfg)
+    _baseline(cfg)
+    author, manifest = completed_artifact(
+        merge_artifact_path(cfg, "evaluation", 42, "author", 4)
+    )
+    merges = {
+        "author": {4: (author, manifest)},
+        "lora": {4: (author, manifest)},
+    }
+    result = _score_policy(
+        cfg,
+        "evaluation",
+        42,
+        {"policy": "beta", "threshold": 0.95, "min_k": 4, "max_k": 4},
+        [4],
+        merges,
+    )
+    by_kind = {row["question"].split(":", 1)[0]: row for row in result["records"]}
+
+    assert by_kind["unanimous"]["adaptive"]["action"] == "STOP"
+    assert by_kind["unanimous"]["costs"]["adaptive"]["csc_called"] is False
+    assert by_kind["disputed"]["adaptive"]["action"] == "CALL_CSC"
+    assert by_kind["disputed"]["costs"]["adaptive"]["csc_called"] is True
+    assert by_kind["invalid"]["adaptive"]["action"] == "STOP_AT_BUDGET"
+    assert by_kind["invalid"]["costs"]["adaptive"]["csc_called"] is False
+
+
+def test_greedy_is_a_separate_temperature_zero_request(experiment):
+    prepare(experiment)
+
+    class TemperatureAware(FakeBackend):
+        requests = []
+
+        def generate(self, messages, *, n, seeds):
+            self.requests.append((self.settings.copy(), n, seeds.copy()))
+            outputs = super().generate(messages, n=n, seeds=seeds)
+            if self.settings["temperature"] == 0:
+                for message, completions in zip(messages, outputs):
+                    if "disputed:" in str(message):
+                        completions[0]["raw_text"] = f"<answer>{CORRECT}</answer>"
+            return outputs
+
+    generate_stage(experiment, "evaluation", backend_factory=TemperatureAware)
+    generate_stage(experiment, "evaluation", mode="greedy", backend_factory=TemperatureAware)
+    fixed, _ = load_generation(experiment, "evaluation", 42)
+    greedy, manifest = load_generation(experiment, "evaluation", 42, mode="greedy")
+    assert manifest["spec"]["sampling"]["temperature"] == 0
+    assert manifest["spec"]["sampling"]["top_p"] == 1
+    requests = TemperatureAware.requests
+    assert len(requests) == 6  # 3 fixed batches and 3 independent greedy batches
+    assert all(n == 4 and settings["temperature"] > 0 for settings, n, _ in requests[:3])
+    assert all(n == 1 and settings["temperature"] == 0 for settings, n, _ in requests[3:])
+    assert fixed[0]["candidates"][0]["sql"] == WRONG
+    assert greedy[0]["candidates"][0]["sql"] == CORRECT
+    assert fixed[0]["candidates"][0]["seed"] == requests[0][2][0]
+    assert greedy[0]["candidates"][0]["seed"] == requests[3][2][0]
+    assert requests[0][2] != requests[3][2]
+
+
+def test_sampling_suite_rejects_missing_csc_and_mismatched_generator_packages(experiment):
+    prepare(experiment)
+    _sampling_baseline(experiment)
+    path = merge_artifact_path(experiment, "evaluation", 42, "author", 1)
+    sidecar = path.with_suffix(path.suffix + ".manifest.json")
+    saved = sidecar.read_bytes()
+    sidecar.unlink()
+    with pytest.raises(FileNotFoundError, match="csc-k1"):
+        evaluate_suite(experiment, baseline_only=True)
+    sidecar.write_bytes(saved)
+    greedy = artifact_path(experiment, "evaluation", "greedy.generation", 42)
+    sidecar = greedy.with_suffix(greedy.suffix + ".manifest.json")
+    manifest = read_json(sidecar)
+    manifest["packages"] = {"backend": "different"}
+    atomic_json(sidecar, manifest)
+    with pytest.raises(ValueError, match="identical generator weights and inference package"):
+        evaluate_suite(experiment, generator_only=True)
+
+
+def test_sampling_suite_supports_disabled_adaptive_and_generator_only(experiment):
+    cfg = copy.deepcopy(experiment)
+    cfg["adaptive"]["enabled"] = False
+    prepare(cfg)
+    _generate_execute(cfg, "evaluation")
+    generate_stage(cfg, "evaluation", mode="greedy", backend_factory=FakeBackend)
+    execute_stage(cfg, "evaluation", mode="greedy")
+    result = evaluate_suite(cfg, generator_only=True)
+    report = read_json(result["path"])
+    assert set(report["summary"]["methods"]) == {"greedy", "sc@1", "sc@2", "sc@4"}
+    assert report["summary"]["adaptive"] is None
+    assert report["summary"]["fixed"]["4"]["author_csc@k"] is None
+
+
+def test_sampling_comparison_all_k_adaptive_multi_seed_and_cached_cli(experiment):
+    from research.slm_sql.protocol import freeze, verify_freeze
+
+    cfg = experiment
+    prepare(cfg)
+    _sampling_baseline(cfg)
+    for split in ("train", "validation"):
+        _generate_execute(cfg, split)
+    build_pairs(cfg)
+    _fake_adapter(cfg)
+    _select_validation_policy(cfg)
+    frozen = freeze(cfg, seeds=[42, 43])
+    assert frozen["spec"]["k_values"] == [1, 2, 4]
+    assert verify_freeze(cfg, 42) == frozen["signature"]
+    changed = copy.deepcopy(cfg)
+    changed["adaptive"]["threshold"] = 0.99
+    with pytest.raises(ValueError, match="after the final freeze"):
+        verify_freeze(changed, 42)
+    with pytest.raises(ValueError, match="not declared"):
+        verify_freeze(cfg, 44)
+    with pytest.raises(ValueError, match="not declared"):
+        verify_freeze(cfg, 42, 3)
+    for seed in (42, 43):
+        if seed == 43:
+            _sampling_baseline(cfg, seed)
+        for k in (1, 2, 4):
+            merge_stage(cfg, seed=seed, k=k, variant="lora", backend_factory=FakeBackend)
+        merge_stage(cfg, seed=seed, source="adaptive", variant="lora", backend_factory=FakeBackend)
+    result = aggregate_suites(cfg, seeds=[42, 43])
+    report = read_json(result["path"])
+    methods = report["summary"]
+    assert methods["lora_csc@4"]["ex_mean"] > methods["author_csc@4"]["ex_mean"]
+    assert methods["adaptive_lora_csc"]["ex_mean"] == methods["adaptive_author_csc"]["ex_mean"]
+    assert methods["lora_csc@1"]["ex_mean"] == methods["sc@1"]["ex_mean"]
+    assert methods["lora_csc@4"]["seed_averaged_question_ci95"]["n"] == 6
+    pair = report["paired_comparisons"]["adaptive_lora_csc_vs_adaptive_author_csc"]
+    assert pair["paired_delta_ci95"]["n"] == 6  # not 12 seed/question observations
+    assert len(pair["tests_by_seed"]) == 2
+    for variant in ("author", "lora"):
+        rows, manifest = completed_artifact(merge_artifact_path(cfg, "evaluation", 42, variant, 1))
+        assert all(not r["csc_called"] for r in rows)
+        assert "model_identity" not in manifest  # no unnecessary merger load at k=1
+    cli_config = Path(cfg["experiment_dir"]).parent / "sampling_cli.json"
+    atomic_json(cli_config, cfg)
+    for command in ("sampling-baseline", "sampling-final"):
+        cached = subprocess.run(
+            [sys.executable, "-m", "research.slm_sql", "--config", str(cli_config), command],
+            capture_output=True, text=True,
+        )
+        assert cached.returncode == 0, cached.stderr
+        assert '"sampling": "complete"' in cached.stdout
+    sidecar = merge_artifact_path(cfg, "evaluation", 42, "lora", source="adaptive")
+    sidecar = sidecar.with_suffix(sidecar.suffix + ".manifest.json")
+    metadata = read_json(sidecar)
+    metadata["packages"] = {"backend": "other"}
+    atomic_json(sidecar, metadata)
+    with pytest.raises(ValueError, match="identical inference package"):
+        evaluate_suite(cfg)
+
+
+def test_sampling_config_legacy_budget_and_invalid_values(experiment, tmp_path):
+    path = tmp_path / "small.json"
+    atomic_json(path, {"generation": {"evaluation_samples": 3}})
+    cfg = load_config(path)
+    assert cfg["evaluation"]["sampling_k_values"] == [1, 2]
+    assert cfg["adaptive"]["max_k"] == cfg["adaptive"]["min_k"] == 3
+    for overrides, match in (
+        ({"evaluation": {"sampling_k_values": [1, 1]}}, "unique positive"),
+        ({"evaluation": {"sampling_k_values": [65]}}, "cannot exceed"),
+        ({"adaptive": {"enabled": "true"}}, "boolean"),
+        ({"adaptive": {"threshold": 0}}, "threshold"),
+    ):
+        atomic_json(path, overrides)
+        with pytest.raises(ValueError, match=match):
+            load_config(path)
+    atomic_json(path, {"adaptive": {"policy": "router"}})
+    assert load_config(path)["adaptive"]["policy"] == "router"

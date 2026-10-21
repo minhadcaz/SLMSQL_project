@@ -1,19 +1,19 @@
-# Kaggle: chay tung notebook 00-11, du lieu va checkpoint
+# Kaggle: chay tung notebook 00-12, du lieu va checkpoint
 
-Tai lieu nay mo ta **code dang co**, khong phai mot pipeline 12 buoc noi tiep. Co
+Tai lieu nay mo ta **code dang co**, khong phai mot pipeline 13 buoc noi tiep. Co
 hai nhanh doc lap:
 
-- **Nghien cuu chinh: 09 -> 10 -> 11.** Generator `cycloneboy/SLM-SQL-1.5B`
+- **Nghien cuu chinh: 09 -> 10 -> 11 -> 12.** Generator `cycloneboy/SLM-SQL-1.5B`
   va CSC merger `cycloneboy/CscSQL-Merge-Qwen2.5-Coder-1.5B-Instruct` cua tac
   gia; LoRA chi hoc tren merger. Khong can chay 00-08, khong can SynSQL.
 - **Nhanh cu Qwen/adaptive: 00 -> 01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 07 -> 08**
   (nhieu buoc tuy chon). 02 do Qwen base, 03 huan luyen LoRA Qwen; 04-08
-  khong do CSC merger cua tac gia. Bao cao 08 khong doc report cua 09-11.
+  khong do CSC merger cua tac gia. Bao cao 08 khong doc report cua 09-12.
 
 ## Truoc khi mo notebook
 
 1. Kaggle Settings: bat GPU va Internet cho nhung cell can tai weights/cai goi.
-   Python khuyen nghi 3.11/3.12; 09 va 11 dung
+   Python khuyen nghi 3.11/3.12; 09, 11 va 12 dung
    `requirements-csc-inference.txt`, 10 dung `requirements-csc-training.txt`
    trong **session rieng**. Khong cai hai profile vao cung mot session.
 2. Clone source moi tu GitHub sau khi push; hoac attach source da duoc cap nhat.
@@ -191,7 +191,12 @@ Kiem tra `CSC_TRAIN_DIR/train.json` va `CSC_EVAL_DIR/dev.json`. Kaggle Secrets
 bao loi neu env khac config da dong bang. `CSC_PILOT=0` cho full run phai dung
 `CSC_CONFIG`/`CSC_EXPERIMENT_DIR` **moi**; mac dinh full: train 1200,
 validation 200, **toan bo dev**, 16 samples train/validation, 64 samples dev,
-8 merge samples. Khong danh dong diem pilot vao paper.
+8 merge samples. Fixed sweep full: `[1,2,4,8,16,32,64]`; pilot: `[1,2,4]`.
+`CSC_EVAL_SEEDS` la danh sach seed cach bang dau phay, mac dinh pilot dung CSC_SEED,
+full dung `42,43,44`. Dat cung danh sach o 09, 11 va 12. Adaptive Beta mac dinh full:
+min=4, max=64, batch=4, threshold=.95; pilot min=2, max=4, batch=2. Config ho tro
+margin/entropy. Khong chon tham so theo final dev. Khong danh dong diem pilot vao
+paper. Xem [plan sampling](SLM_SQL_SAMPLING_PLAN.md).
 
 ### 09 - `09_slm_sql_baseline.ipynb`
 
@@ -199,18 +204,24 @@ validation 200, **toan bo dev**, 16 samples train/validation, 64 samples dev,
   cua tac gia tren Hub se download o lan generation/merge GPU dau tien (can
   Internet); version thuc te duoc dong bang trong `models/{generator,merger}.json`.
 - **Chay:** session inference. Cell install profile, `plan`, `prepare`, xem so
-  cau truoc khi bat `RUN_CSC_GPU=1`. `baseline` chay generation -> execution
-  -> CSC goc -> score trong process rieng. Neu chi co dev, set
+  cau truoc khi bat `RUN_CSC_GPU=1`. `sampling-baseline` chay fixed generation /
+  execution, greedy rieng (temperature=0), adaptive online, author CSC moi k va
+  tren adaptive candidates, sau do cham suite. Moi stage GPU la process rieng.
+  Adaptive sinh vong tiep theo chi khi policy chua dung; khong replay fixed cache.
+  Neu chi co dev, set
   `BUILD_CSC_TRAIN_CACHE=0`: `prepare --evaluation-only`; khi co train, doi
   lai `1`, chay 09 voi cung config, khong regenerate evaluation da cache.
   Sau baseline, neu train cache bat, cell cuoi generate/execute train/validation.
 - **Dau ra (tai `<experiment>`):** `data/manifest.json`, `data/*.jsonl`,
   `data/schemas/*.json`, `models/*.json`, `execution_cache.sqlite`,
-  `seed42/evaluation.{generation,execution,author.csc-k4}.jsonl` va cac
-  `.manifest.json`, `seed42/{train,validation}.{generation,execution}.jsonl`,
-  `reports/evaluation-seed42-k4.baseline.json`. `k64` khi full config.
-- **Canh bao:** 09 khong tao adapter; SC va author CSC score o day, khong co
-  delta LoRA. Neu baseline CSC khong he duoc goi thi 10 se tu choi training.
+  `seed42/evaluation.{generation,execution,greedy.generation,greedy.execution,adaptive}.jsonl`,
+  `evaluation.author.csc-k<K>.jsonl` cho moi k va `evaluation.author.adaptive-csc.jsonl`
+  cung cac `.manifest.json`; `seed42/{train,validation}.{generation,execution}.jsonl`.
+  Reports: `evaluation-seed42.sampling.baseline.{json,csv}` va
+  `evaluation.sampling.baseline.multi-seed.{json,csv}`; van giu fixed-k reports cu.
+  Cac seed khac co folder/file rieng.
+- **Canh bao:** pass@k la oracle, self_consistency@k la SC vote, SLM-SQL@k co
+  author CSC. 09 khong tao adapter, khong co delta LoRA. Neu baseline CSC khong he duoc goi thi 10 se tu choi training.
 
 ### 10 - `10_csc_lora.ipynb`
 
@@ -236,14 +247,39 @@ validation 200, **toan bo dev**, 16 samples train/validation, 64 samples dev,
   train DB raw khong can neu da co prepared train metadata/pair files.
   `adapter/final` va `adapter/training_manifest.json` co the duoc restore tu
   Hub *sau khi* copy toan bo cache khac. Session **inference** rieng.
-- **Chay:** optional `RESTORE_CSC_ADAPTER=1` (doc Hub private). `CSC_K` mac
-  dinh bang cached n (4 pilot / 64 full); K nho hon (vi du 16 tren cache 64)
-  can chay them author merge cung K. Bat `RUN_CSC_GPU=1` de merge author/LoRA;
-  `score` sau do chi can CPU. Generator cache khong duoc sinh lai.
-- **Dau ra:** `seed42/evaluation.lora.csc-k<K>.jsonl` + manifest,
-  `reports/evaluation-seed42-k<K>.comparison.json`. Mo JSON xem `summary`,
-  `comparison.delta_ex`, CI, McNemar, so cau improved/regressed. Khong tu nhan
-  EX cua paper neu prompt/schema khac.
+- **Chay:** optional `RESTORE_CSC_ADAPTER=1` (doc Hub private). Mac dinh chay
+  tat ca `evaluation.sampling_k_values`; `CSC_K` tuy chon gioi han mot prefix.
+  Cell freeze khoa adapter, source, config, moi seed/k va adaptive settings truoc
+  final LoRA predictions. Bat `RUN_CSC_GPU=1` de chay `sampling-final` (author/LoRA
+  merger cho fixed va adaptive candidates); `suite`/`report-suite` cham CPU.
+  Generator khong duoc goi lai; thieu greedy/fixed/adaptive cache thi hoan tat 09.
+- **Dau ra:** `seed42/evaluation.lora.csc-k<K>.jsonl` va
+  `evaluation.lora.adaptive-csc.jsonl` cung manifest; reports
+  `evaluation-seed42.sampling.comparison.{json,csv}` va
+  `evaluation.sampling.comparison.multi-seed.{json,csv}`. `CSC_K` them `-k<K>`
+  truoc `.sampling`. Mo `summary.methods`, `summary.fixed`, `paired_comparisons`
+  va per-question `records` de xem EX, CI, improved/regressed va chi phi.
+- **Dien giai:** tokens/samples gom generator va merger. CI bootstrap theo cau
+  da average cac seed, khong coi seed/cau la doc lap. Prefix k<n khong co latency
+  do rieng; adaptive sequential time va fixed batch time la workload khac nhau.
+  Chua co ket qua GPU/BIRD that cho suite moi; khong tu nhan EX cua paper.
+
+### 12 - `12_adaptive_sampling.ipynb`
+
+- **Dau vao:** experiment folder/config da tao boi 09–12, validation fixed merge
+  checkpoints cua author/LoRA, selected policy va evaluation caches.
+- **Chay:** `adaptive-sweep --split validation` de chon policy; policy nay chi duoc
+  chon tu validation va khong dung evaluation EX de tune threshold. Khi can tao lai
+  adaptive CSC tren online cache, chay `adaptive-merge --split evaluation --variant
+  author` va cung lenh voi `--variant lora`; `adaptive-csc-eval --split evaluation`
+  replay policy da chon tren fixed prefix va kiem tra provenance/freeze.
+- **Bao cao:** doc `evaluation-seed<S>.sampling.comparison.json` de in greedy,
+  SC@k, author CSC@k, LoRA CSC@k, adaptive SC, adaptive + author CSC va adaptive
+  + LoRA CSC; doc them `evaluation-seed<S>.adaptive-csc-eval.json` voi
+  `accuracy_basis=offline_prefix_exact`. Hai report adaptive online/offline giu rieng.
+- **Che do report-only:** neu tat `RUN_ADAPTIVE_POLICY_SWEEP` va
+  `RUN_ADAPTIVE_MERGE`, notebook chi doc artifact da co, khong tai model hay goi
+  merger moi.
 
 ## Day LoRA CSC len Hugging Face (chi sau notebook 10)
 

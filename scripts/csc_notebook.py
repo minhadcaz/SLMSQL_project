@@ -63,6 +63,8 @@ def configure(repo: str | Path) -> tuple[Path, dict]:
         cfg["evaluation"]["sampling_k_values"] = [1, 2, 4]
         cfg["adaptive"]["max_k"] = 4
         cfg["adaptive"]["min_k"] = 2
+        cfg["adaptive"]["batch_size"] = 2
+        cfg["adaptive"]["checkpoints"] = [2, 4]
         cfg["experiment_dir"] = str((repo / "results/csc_slm_sql_pilot").resolve())
     if os.environ.get("CSC_EXPERIMENT_DIR"):
         cfg["experiment_dir"] = str(Path(os.environ["CSC_EXPERIMENT_DIR"]).resolve())

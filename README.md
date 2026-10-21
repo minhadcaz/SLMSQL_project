@@ -1,15 +1,17 @@
 # Adaptive SLM SQL
 
 > **Luồng nghiên cứu chính: cải tiến CSC trên SLM-SQL của tác giả bằng LoRA.**
-> Dùng notebook **09 → 10 → 11**; xem [quy trình CSC LoRA](docs/CSC_LORA.md) và
-> [hướng dẫn Kaggle](KAGGLE.md). Xem [từng notebook 00–11](docs/NOTEBOOKS_00_11.md)
+> Dùng notebook **09 → 10 → 11 → 12**; xem [quy trình CSC LoRA](docs/CSC_LORA.md) và
+> [hướng dẫn Kaggle](KAGGLE.md). Xem [từng notebook 00–12](docs/NOTEBOOKS_00_11.md)
 > để biết input/output, path, phiên bản và upload adapter. Baseline dùng generator + merger đã SFT + GRPO;
-> adapter chỉ huấn luyện trên train, rồi so sánh CSC gốc/LoRA cùng candidate cache.
+> adapter chỉ huấn luyện trên train, rồi so sánh CSC gốc/LoRA trên fixed và adaptive
+> candidates. Luồng 09–12 có **greedy riêng, pass@k, SC@k, CSC@k và online adaptive**;
+> xem [plan sampling](docs/SLM_SQL_SAMPLING_PLAN.md).
 > Các notebook Qwen SFT/adaptive cũ là nhánh tùy chọn, không phải baseline SLM-SQL đầy đủ.
 
 **Mới clone repo?** Xem [SETUP.md — cài đặt, tải model và chạy từ đầu](SETUP.md).
 
-Audit triển khai ngày **19/10/2026** đã chạy **139 test CPU pass** và Ruff sạch. Đây là bằng chứng cho pipeline, evaluator, cache và các hợp đồng chống leakage; chưa có GPU runtime usable hoặc full BIRD trong phiên audit, nên chưa thể kết luận LoRA làm tăng EX trên BIRD.
+Kiểm tra bổ sung sampling ngày **20/10/2026**: **157 test CPU pass**, Ruff scope sạch, 13 notebook/90 code cell validate và compile được; xem [biên bản kiểm chứng](results/verification.md). Đây là bằng chứng cho logic pipeline, evaluator, cache và chống leakage. Chưa chạy matrix mới trên GPU/full BIRD, nên chưa kết luận tăng EX hoặc giảm latency thực nghiệm.
 
 Ứng dụng local chuyển câu hỏi tiếng Việt/tiếng Anh thành SQL trên SQLite. Pipeline đọc schema, sinh SQL, kiểm tra, thực thi và chọn ứng viên dựa trên kết quả. Có giao diện Streamlit và CLI thực nghiệm.
 
@@ -192,7 +194,7 @@ python -m streamlit run app.py
 
 Linux CPU: dùng wheel CPU như Windows. macOS: `python -m pip install torch==2.6.0` rồi cài `requirements-model.txt`; bản demo chạy CPU, chưa có backend MPS.
 
-Kaggle cho pipeline nghiên cứu CSC LoRA: xem [KAGGLE.md](KAGGLE.md) và chạy các notebook `09` → `11`. Các notebook `00` → `08` là nhánh cũ/tùy chọn. Mỗi notebook tự bootstrap repo/path để có thể chạy ở session độc lập; artifact giữa session nên lưu trong Kaggle Dataset hoặc Hugging Face. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa có GPU Kaggle trong phiên này nên chưa đo runtime thực tế.
+Kaggle cho pipeline nghiên cứu CSC LoRA: xem [KAGGLE.md](KAGGLE.md) và chạy các notebook `09` → `12`. Notebook `12` kiểm tra policy adaptive, merge adaptive và báo cáo sampling; các notebook `00` → `08` là nhánh cũ/tùy chọn. Mỗi notebook tự bootstrap repo/path để có thể chạy ở session độc lập; artifact giữa session nên lưu trong Kaggle Dataset hoặc Hugging Face. Chạy CLI evaluation trực tiếp, không cần tunnel UI. Không tải database cá nhân lên môi trường cloud nếu bạn muốn dữ liệu chỉ nằm trên máy local. Chưa có GPU Kaggle trong phiên này nên chưa đo runtime thực tế.
 
 ## 8. Dữ liệu: tự tạo gì, tải gì?
 

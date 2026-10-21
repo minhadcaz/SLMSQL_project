@@ -7,6 +7,8 @@ This estimates stability of the leading group, not semantic correctness.
 import math
 from collections import Counter
 
+from research.slm_sql.policy_view import policy_view
+
 
 class BetaStoppingPolicy:
     def __init__(self, threshold: float = 0.95, min_k: int = 4, max_k: int = 32):
@@ -28,16 +30,18 @@ class BetaStoppingPolicy:
         return sum(math.comb(trials, j) for j in range(a)) / 2**trials
 
     def should_stop(self, candidates_so_far: list[dict], step: int) -> tuple[bool, str]:
+        candidates_so_far = policy_view(candidates_so_far)
         if step < self.min_k:
             return False, "SAMPLE_MORE"
-        if step >= self.max_k:
-            return True, "STOP"
         conf = self._posterior_confidence(candidates_so_far)
         if conf >= self.threshold:
             return True, "STOP"
+        if step >= self.max_k:
+            return False, "SAMPLE_MORE"
         return False, "SAMPLE_MORE"
 
     def select(self, candidates: list[dict]) -> str | None:
+        candidates = policy_view(candidates)
         fps = [c.get("fingerprint") for c in candidates if c.get("fingerprint")]
         if not fps:
             return None

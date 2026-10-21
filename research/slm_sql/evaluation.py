@@ -10,14 +10,14 @@ from sqlglot import exp
 from evaluation.final_eval import bootstrap_mean_ci, mcnemar_test
 from research.slm_sql import PROTOCOL_VERSION
 from research.slm_sql.artifacts import atomic_json, completed_artifact, file_hash
-from research.slm_sql.config import artifact_path
+from research.slm_sql.config import artifact_path, merge_artifact_path
 from research.slm_sql.execution import EXECUTION_VERSION
 from research.slm_sql.pipeline import load_execution
 from research.slm_sql.prompts import PROMPT_VERSION, top_groups
 
 
-def _load_merge(cfg, split, seed, k, variant, execution_manifest, ids):
-    path = artifact_path(cfg, split, f"{variant}.csc-k{k}", seed)
+def _load_merge(cfg, split, seed, k, variant, execution_manifest, ids, *, source="fixed"):
+    path = merge_artifact_path(cfg, split, seed, variant, k, source=source)
     rows, manifest = completed_artifact(path)
     spec = manifest["spec"]
     expected = {
@@ -30,6 +30,8 @@ def _load_merge(cfg, split, seed, k, variant, execution_manifest, ids):
         "merger": cfg["merger"],
         "execution": execution_manifest["sha256"],
     }
+    if source == "adaptive":
+        expected["source"] = "adaptive"
     if any(spec.get(key) != value for key, value in expected.items()):
         raise ValueError(f"{variant} CSC cache does not match this experiment.")
     if spec["implementation"] != {
@@ -46,27 +48,25 @@ def _features(sql):
     return {"join": any(tree.find_all(exp.Join)), "aggregate": any(tree.find_all(exp.AggFunc))}
 
 
-def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False) -> dict:
-    records, execution_manifest = load_execution(cfg, split, seed)
-    n = cfg["generation"][f"{split}_samples"]
-    k = n if k is None else k
-    if not records or not isinstance(k, int) or isinstance(k, bool) or not 1 <= k <= n:
-        raise ValueError("Scoring requires nonempty paired records and k within the cache.")
+def load_csc_variants(
+    cfg, split, seed, k, records, execution_manifest, *, baseline_only=False, source="fixed",
+):
+    """Load strictly paired author/LoRA outputs for fixed or adaptive candidates."""
     protocol_signature = None
     if split == "evaluation" and not baseline_only:
         from research.slm_sql.protocol import verify_freeze
         protocol_signature = verify_freeze(cfg, seed, k)
     ids = [r["id"] for r in records]
     author_rows, author_manifest = _load_merge(
-        cfg, split, seed, k, "author", execution_manifest, ids
+        cfg, split, seed, k, "author", execution_manifest, ids, source=source
     )
     variants = {"author_csc": author_rows}
     manifests = {"author_csc": author_manifest}
     if not baseline_only:
         from research.slm_sql.adaptation import validate_adapter
 
-        _, adapter_identity, _ = validate_adapter(cfg, split, seed, k)
-        lora_rows, lora_manifest = _load_merge(cfg, split, seed, k, "lora", execution_manifest, ids)
+        _, adapter_identity, _ = validate_adapter(cfg, split, seed, k, source=source)
+        lora_rows, lora_manifest = _load_merge(cfg, split, seed, k, "lora", execution_manifest, ids, source=source)
         if lora_manifest["spec"].get("adapter") != adapter_identity:
             raise ValueError(
                 "LoRA predictions were produced with different adapter weights. Run merge for the current adapter."
@@ -91,6 +91,18 @@ def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False
             )
         variants["lora_csc"] = lora_rows
         manifests["lora_csc"] = lora_manifest
+    return variants, manifests, protocol_signature
+
+
+def score(cfg: dict, split="evaluation", seed=42, k=None, *, baseline_only=False) -> dict:
+    records, execution_manifest = load_execution(cfg, split, seed)
+    n = cfg["generation"][f"{split}_samples"]
+    k = n if k is None else k
+    if not records or not isinstance(k, int) or isinstance(k, bool) or not 1 <= k <= n:
+        raise ValueError("Scoring requires nonempty paired records and k within the cache.")
+    variants, manifests, protocol_signature = load_csc_variants(
+        cfg, split, seed, k, records, execution_manifest, baseline_only=baseline_only,
+    )
     _, generation_manifest = completed_artifact(artifact_path(cfg, split, "generation", seed))
     per_question = []
     for index, record in enumerate(records):

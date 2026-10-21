@@ -1,4 +1,10 @@
-"""Generate SQL online in rounds of four, with resumable policy evaluation.
+"""Legacy online adaptive generator with resumable policy evaluation.
+
+This module is separate from the canonical 09-11 SLM-SQL + CSC LoRA workflow.
+Its ``--csc-adapter`` path is accepted only for a legacy adapter trained against
+exactly the model passed to ``--model``. Notebook 10 adapters belong to the
+merger process and must be run through ``research.slm_sql adaptive`` followed by
+``adaptive-merge``.
 
 Example (Kaggle GPU):
   python -m research.online_adaptive --model /kaggle/working/SLM-PRJ/results/lora/merged \
@@ -39,6 +45,34 @@ def _save_checkpoint(path: Path, data: dict[str, Any]) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     temporary.replace(path)
+
+
+def _validate_legacy_csc_adapter(adapter_path: str | Path, model_path: str | Path) -> None:
+    """Reject canonical 09-11 merger adapters in the legacy generator script."""
+    adapter = Path(adapter_path).expanduser().resolve()
+    config_path = adapter / "adapter_config.json"
+    if not config_path.is_file():
+        raise ValueError(f"Legacy CSC adapter is missing adapter_config.json: {config_path}")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    base = config.get("base_model_name_or_path")
+    model_text = str(model_path)
+    try:
+        base_matches = Path(base).expanduser().resolve() == Path(model_text).expanduser().resolve()
+    except (TypeError, OSError, ValueError):
+        base_matches = False
+    if not base_matches and base != model_text:
+        raise ValueError(
+            "Legacy --csc-adapter base_model_name_or_path differs from --model. "
+            "Use an adapter trained for this exact generator checkpoint."
+        )
+    for parent in (adapter, *adapter.parents):
+        manifest = parent / "training_manifest.json"
+        if manifest.is_file():
+            raise ValueError(
+                "This adapter belongs to the canonical 09-11 CSC merger flow. "
+                "Run research.slm_sql adaptive, then research.slm_sql adaptive-merge "
+                "in a separate merger process."
+            )
 
 
 def _completion_logprob(completion: Any) -> float:
@@ -211,6 +245,8 @@ def run_online_adaptive(
     """Run online policy evaluation and checkpoint after each question."""
     if batch_size < 1 or max_k < 1 or max_tokens < 1 or n_permutations < 1:
         raise ValueError("batch_size, max_k, max_tokens, n_permutations must be positive.")
+    if csc_adapter_path:
+        _validate_legacy_csc_adapter(csc_adapter_path, model_path)
     if len({_record_id(r) for r in records}) != len(records):
         raise ValueError("Questions must have unique (db_id, question) pairs for resumption.")
     if hasattr(policy, "max_k"):

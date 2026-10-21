@@ -10,6 +10,24 @@ from pathlib import Path
 from typing import Any
 
 from research.calibration import compute_features
+from research.slm_sql.policy_view import policy_view
+
+
+class _ConstantClassifier:
+    """Dependency-free estimator for one-class calibration folds."""
+
+    def __init__(self, value: int):
+        self.classes_ = [value]
+        self.value = value
+
+    def fit(self, _X, _y):
+        return self
+
+    def predict(self, X):
+        return [self.value] * len(X)
+
+    def predict_proba(self, X):
+        return [[1.0] for _ in X]
 
 
 class LearnedStopperPolicy:
@@ -50,17 +68,27 @@ class LearnedStopperPolicy:
         if not y:
             raise ValueError("No calibration rows available for stopper training.")
         if len(set(y)) == 1:
-            from sklearn.dummy import DummyClassifier
-            self._model = DummyClassifier(strategy="constant", constant=y[0])
-            self._model.fit(X, y)
+            try:
+                from sklearn.dummy import DummyClassifier
+            except ModuleNotFoundError:
+                self._model = _ConstantClassifier(y[0])
+            else:
+                self._model = DummyClassifier(strategy="constant", constant=y[0])
+                self._model.fit(X, y)
         elif self.model_type == "logistic":
-            from sklearn.linear_model import LogisticRegression
-            from sklearn.pipeline import make_pipeline
-            from sklearn.preprocessing import StandardScaler
-            self._model = make_pipeline(
-                StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
-            )
-            self._model.fit(X, y)
+            try:
+                from sklearn.linear_model import LogisticRegression
+                from sklearn.pipeline import make_pipeline
+                from sklearn.preprocessing import StandardScaler
+            except ModuleNotFoundError:
+                raise RuntimeError(
+                    "Mixed-class logistic stopper training requires the optional scikit-learn package."
+                ) from None
+            else:
+                self._model = make_pipeline(
+                    StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
+                )
+                self._model.fit(X, y)
         elif self.model_type == "xgboost":
             from xgboost import XGBClassifier
             self._model = XGBClassifier(
@@ -76,6 +104,7 @@ class LearnedStopperPolicy:
         return {"train_accuracy": round(acc, 4), "n_samples": len(y), "target": target}
 
     def _predict_proba(self, candidates: list[dict]) -> float:
+        candidates = policy_view(candidates)
         if self._model is None:
             return 0.0
         features = compute_features(candidates)
@@ -95,6 +124,7 @@ class LearnedStopperPolicy:
         return False, "SAMPLE_MORE"
 
     def select(self, candidates: list[dict]) -> str | None:
+        candidates = policy_view(candidates)
         fps = [c.get("fingerprint") for c in candidates if c.get("fingerprint")]
         if not fps:
             return None
